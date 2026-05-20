@@ -211,6 +211,11 @@ export default function CampusMap(props: CampusMapProps) {
   // ── Browse mode cluster layer ref ──
   const clusterGroupRef = useRef<MarkerClusterGroup | null>(null);
 
+  // ── Browse + createMode pin state ──
+  const createMarkerRef = useRef<L.Marker | null>(null);
+  const createModeRegionsRef = useRef<Region[]>([]);
+  const createModePickRef = useRef<BrowseModeProps['onCreateLocationPick']>(undefined);
+
   const syncBrowseMarkerVisuals = useCallback(() => {
     if (propsRef.current.mode !== 'browse' || !clusterGroupRef.current || !mapRef.current) return;
     const zoom = mapRef.current.getZoom();
@@ -259,6 +264,24 @@ export default function CampusMap(props: CampusMapProps) {
     clearFanVisuals();
     setFanCenterWorkId(null);
   }, [clearFanVisuals]);
+
+  const placeCreatePin = useCallback((latlng: L.LatLng) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const { lat: y, lng: x } = latlng;
+    if (createMarkerRef.current) {
+      createMarkerRef.current.setLatLng(latlng);
+    } else {
+      createMarkerRef.current = L.marker(latlng, { icon: PIN_ICON }).addTo(map);
+    }
+
+    const origX = x / MAP_CONFIG.scale;
+    const origY = y / MAP_CONFIG.scale;
+    const zoom = map.getZoom();
+    const result = matchRegion(x, y, zoom, createModeRegionsRef.current);
+    createModePickRef.current?.(origX, origY, result.name);
+  }, []);
 
   // ── Map init (shared) ──
   useEffect(() => {
@@ -459,6 +482,13 @@ export default function CampusMap(props: CampusMapProps) {
       marker._baseZIndexOffset = baseMarkerZIndexOffset(work.likeCount);
       markerByWorkIdRef.current.set(work.id, marker);
       marker.on('click', () => {
+        const currentProps = propsRef.current;
+        if (currentProps.mode === 'browse' && (currentProps as BrowseModeProps).createMode) {
+          collapseFan();
+          placeCreatePin(latlng);
+          return;
+        }
+
         if (fanLayoutRef.current.centerWorkId === work.id) {
           collapseFan();
         } else {
@@ -472,13 +502,21 @@ export default function CampusMap(props: CampusMapProps) {
     // Handle cluster click
     group.on('clusterclick', (e: MarkerClusterClickEvent) => {
       const cluster = e.layer;
+      const bounds = cluster.getBounds();
+      const center = bounds.getCenter();
+
+      const currentProps = propsRef.current;
+      if (currentProps.mode === 'browse' && (currentProps as BrowseModeProps).createMode) {
+        collapseFan();
+        placeCreatePin(center);
+        return;
+      }
+
       const children: MarkerWithWork[] = cluster.getAllChildMarkers();
       const clusterWorks: Work[] = children
         .map((marker: MarkerWithWork) => marker._work)
         .filter((work: Work | undefined): work is Work => Boolean(work));
 
-      const bounds = cluster.getBounds();
-      const center = bounds.getCenter();
       const zoom = map.getZoom();
       const regionResult = matchRegion(center.lng, center.lat, zoom, regions);
 
@@ -601,9 +639,6 @@ export default function CampusMap(props: CampusMapProps) {
   }, [props.mode === 'browse' ? (props as BrowseModeProps).createMode : false]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Browse + createMode: place pin on map click ──
-  const createMarkerRef = useRef<L.Marker | null>(null);
-  const createModeRegionsRef = useRef<Region[]>([]);
-  const createModePickRef = useRef<BrowseModeProps['onCreateLocationPick']>(undefined);
   useLayoutEffect(() => {
     if (props.mode !== 'browse') return;
     createModeRegionsRef.current = props.regions;
@@ -624,24 +659,11 @@ export default function CampusMap(props: CampusMapProps) {
       return;
     }
 
-    const handler = (e: L.LeafletMouseEvent) => {
-      const { lat: y, lng: x } = e.latlng;
-      if (createMarkerRef.current) {
-        createMarkerRef.current.setLatLng(e.latlng);
-      } else {
-        createMarkerRef.current = L.marker(e.latlng, { icon: PIN_ICON }).addTo(map);
-      }
-      // Convert to original coordinates and find region
-      const origX = x / MAP_CONFIG.scale;
-      const origY = y / MAP_CONFIG.scale;
-      const zoom = map.getZoom();
-      const result = matchRegion(x, y, zoom, createModeRegionsRef.current);
-      createModePickRef.current?.(origX, origY, result.name);
-    };
+    const handler = (e: L.LeafletMouseEvent) => placeCreatePin(e.latlng);
 
     map.on('click', handler);
     return () => { map.off('click', handler); };
-  }, [props.mode === 'browse' ? (props as BrowseModeProps).createMode : false]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [props.mode === 'browse' ? (props as BrowseModeProps).createMode : false, placeCreatePin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Submit mode confirm ──
   const handleConfirm = () => {
