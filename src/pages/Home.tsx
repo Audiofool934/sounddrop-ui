@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../api/client';
 import { DEMO_WORKS } from '../demoData';
+import { DEMO_FALLBACK_ENABLED } from '../demoMode';
 import { getWorkTitle } from '../utils/workText';
 
 interface ExampleWork {
@@ -27,7 +28,7 @@ export default function Home() {
     api.get('/works/latest?limit=20').then((res) => {
       if (res.data.success) setExamples(res.data.data);
     }).catch(() => {
-      setExamples(DEMO_WORKS);
+      if (DEMO_FALLBACK_ENABLED) setExamples(DEMO_WORKS);
     });
   }, []);
 

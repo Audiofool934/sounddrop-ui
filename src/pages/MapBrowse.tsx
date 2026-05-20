@@ -10,6 +10,7 @@ import { useDragSheet } from '../hooks/useDragSheet';
 import { EditIcon, HeartIcon, TrashIcon } from '../components/Icons';
 import api from '../api/client';
 import { DEMO_REGIONS, DEMO_WORKS } from '../demoData';
+import { DEMO_FALLBACK_ENABLED } from '../demoMode';
 import type { Work, Region } from '../types';
 import { getWorkSummary, getWorkTitle } from '../utils/workText';
 
@@ -131,9 +132,13 @@ export default function MapBrowse() {
         if (worksRes.data.success && worksRes.data.data) setWorks(worksRes.data.data);
         if (regionsRes.data.success && regionsRes.data.data) setRegions(regionsRes.data.data);
       } catch {
-        setWorks(DEMO_WORKS);
-        setRegions(DEMO_REGIONS);
-        setMapError('');
+        if (DEMO_FALLBACK_ENABLED) {
+          setWorks(DEMO_WORKS);
+          setRegions(DEMO_REGIONS);
+          setMapError('');
+        } else {
+          setMapError('网络错误，请检查连接');
+        }
       } finally {
         setMapLoading(false);
       }

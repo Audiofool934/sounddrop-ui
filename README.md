@@ -34,6 +34,8 @@ npm run dev
 
 The dev server expects a backend API available at `/api/v1`. In local development, you can add a Vite proxy or serve the UI behind a backend/proxy that exposes that path.
 
+For quick UI exploration without a backend, the app falls back to bundled demo map data in Vite dev mode. Production builds do not use demo fallback unless you explicitly set `VITE_DEMO_FALLBACK=true`.
+
 ## Scripts
 
 ```bash
