@@ -1,5 +1,5 @@
 {
-  "name": "thumbdrop-ui",
+  "name": "sounddrop-ui",
   "private": false,
   "version": "0.0.0",
   "type": "module",
@@ -41,14 +41,13 @@
     "typescript-eslint": "^8.57.0",
     "vite": "^8.0.1"
   },
-  "description": "React UI for Thumbdrop, a campus sound-map experience",
+  "description": "React UI for SoundDrop, a campus sound-map experience",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Audiofool934/Thumbdrop-UI.git"
+    "url": "https://github.com/Audiofool934/sounddrop-ui.git"
   },
   "keywords": [
-    "thumbdrop",
     "sounddrop",
     "ai-music",
     "sound-map",
