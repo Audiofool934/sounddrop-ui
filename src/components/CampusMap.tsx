@@ -733,7 +733,7 @@ export default function CampusMap(props: CampusMapProps) {
       {/* Browse + createMode hint */}
       {props.mode === 'browse' && (props as BrowseModeProps).createMode && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] bg-black/70 text-white text-sm px-4 py-2 rounded-full pointer-events-none">
-          点击地图选择你的角落
+          点击地图选择地点
         </div>
       )}
 
@@ -742,8 +742,8 @@ export default function CampusMap(props: CampusMapProps) {
         <>
           {!pinPos && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-black/70 text-white text-sm px-4 py-2 rounded-full pointer-events-none">
-              <span className="hidden sm:inline">点击地图选择你的角落 · 放大地图可选择更精确的地点名</span>
-              <span className="sm:hidden">点击地图选择角落</span>
+              <span className="hidden sm:inline">点击地图选择地点，放大后可以选得更精确</span>
+              <span className="sm:hidden">点击地图选择地点</span>
             </div>
           )}
 
@@ -763,7 +763,7 @@ export default function CampusMap(props: CampusMapProps) {
                 onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(160, 40, 45, 0.75)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(160, 40, 45, 0.5)'; }}
               >
-                确认此地点 →
+                确认地点 →
               </button>
             </div>
           )}
@@ -773,7 +773,7 @@ export default function CampusMap(props: CampusMapProps) {
       {/* Browse mode hint */}
       {props.mode === 'browse' && props.works.length === 0 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-black/70 text-white text-sm px-4 py-2 rounded-full pointer-events-none whitespace-nowrap">
-          暂无作品 · 成为第一个留下声音的人
+          暂无作品
         </div>
       )}
 

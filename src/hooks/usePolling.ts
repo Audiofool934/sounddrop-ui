@@ -1,10 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api/client';
 
+export interface QueueInfo {
+  jobsAhead: number | null;
+  queuePosition: number | null;
+  totalQueued: number | null;
+  myActive: number | null;
+}
+
 interface PollResult {
   status: 'queued' | 'processing' | 'done' | 'failed';
   audioUrls: string[] | null;
   estimatedWait: number | null;
+  queue?: QueueInfo;
 }
 
 export function useGenerationPolling(submissionId: string | null) {

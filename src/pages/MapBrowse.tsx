@@ -81,7 +81,7 @@ export default function MapBrowse() {
   const [editError, setEditError] = useState('');
 
   // Status bar: active generation tracking
-  const [activeGen, setActiveGen] = useState<{ submissionId: string; regionName: string; status: string } | null>(null);
+  const [activeGen, setActiveGen] = useState<{ submissionId: string; regionName: string; status: string; jobsAhead?: number | null } | null>(null);
   const genIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const trackingIdRef = useRef<string | null>(null);
 
@@ -175,7 +175,11 @@ export default function MapBrowse() {
     const poll = async () => {
       try {
         const res = await api.get(`/generations/${submissionId}`);
-        const data = res.data.data as { status: string; audioUrls: string[] | null };
+        const data = res.data.data as { status: string; audioUrls: string[] | null; queue?: { jobsAhead: number | null } };
+
+        if (data.status === 'queued' || data.status === 'processing') {
+          setActiveGen({ submissionId, regionName, status: 'generating', jobsAhead: data.queue?.jobsAhead ?? null });
+        }
 
         if (data.status === 'done') {
           setActiveGen({ submissionId, regionName, status: 'ready' });
@@ -339,11 +343,11 @@ export default function MapBrowse() {
       return;
     }
     if (!storyValid) {
-      setSubmitError(`角落故事最多 ${CORNER_STORY_MAX_LENGTH} 字`);
+      setSubmitError(`描述最多 ${CORNER_STORY_MAX_LENGTH} 字`);
       return;
     }
     if (!promptValid) {
-      setSubmitError('音乐提示词最多 100 字');
+      setSubmitError('音乐描述最多 100 字');
       return;
     }
     setSubmitError(''); setSubmitting(true);
@@ -420,7 +424,7 @@ export default function MapBrowse() {
       return;
     }
     if (!editStoryValid) {
-      setEditError(`角落故事最多 ${CORNER_STORY_MAX_LENGTH} 字`);
+      setEditError(`描述最多 ${CORNER_STORY_MAX_LENGTH} 字`);
       return;
     }
 
@@ -460,7 +464,7 @@ export default function MapBrowse() {
 
   const handleOwnerDelete = useCallback(async (work: Work) => {
     if (editDeleting || editSaving) return;
-    if (!window.confirm('确定删除这个声音角落吗？图片、音频和点赞记录都会被移除。')) return;
+    if (!window.confirm('确定删除这个作品吗？图片、音频和点赞记录都会被移除。')) return;
 
     setEditDeleting(true);
     setEditError('');
@@ -672,12 +676,14 @@ export default function MapBrowse() {
                 style={{ borderColor: 'var(--accent-text)', borderTopColor: 'transparent' }}
               />
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                正在为「{activeGen.regionName}」生成音乐…
+                {activeGen.jobsAhead !== null && activeGen.jobsAhead !== undefined
+                  ? `排队中：前方 ${activeGen.jobsAhead} 个任务`
+                  : `正在生成「${activeGen.regionName}」的音乐…`}
               </span>
             </div>
           ) : (
             <span className="text-sm font-medium text-white">
-              你的音乐已就绪！点击选择 →
+              音乐已生成，点击选择 →
             </span>
           )}
         </div>
@@ -725,10 +731,10 @@ export default function MapBrowse() {
             }}
           >
             <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              在地图上点选一个角落
+              选择地图上的地点
             </p>
             <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
-              选定位置后，就可以上传照片并填写故事
+              选好地点后，上传照片并填写描述
             </p>
           </div>
         </div>
@@ -748,9 +754,9 @@ export default function MapBrowse() {
       {!mapLoading && !mapError && works.length === 0 && (
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[998]">
           <div className="glass-panel rounded-[var(--radius-lg)] px-5 py-4 text-center shadow-xl">
-            <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>还没有声音作品，成为第一个投稿者吧！</p>
+            <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>还没有作品</p>
             <button type="button" onClick={startCreateFlow} className="text-sm underline" style={{ color: 'var(--accent-text)' }}>
-              立即在地图上创建 →
+              去创建 →
             </button>
           </div>
         </div>
@@ -858,9 +864,9 @@ export default function MapBrowse() {
           <>
             <div className="px-5 py-4 flex-shrink-0 flex items-start justify-between gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div>
-                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>我的声音</p>
-                <h2 className="font-semibold mt-2" style={{ fontSize: 16, color: 'var(--text-primary)' }}>我的音乐</h2>
-                {myWorks.length > 0 && <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>{myWorks.length} 首</p>}
+                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>我的作品</p>
+                <h2 className="font-semibold mt-2" style={{ fontSize: 16, color: 'var(--text-primary)' }}>我的作品</h2>
+                {myWorks.length > 0 && <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>{myWorks.length} 件</p>}
               </div>
               <button aria-label="关闭" onClick={() => { setSidebarWorks(null); setSelectedWork(null); setMyPanelOpen(false); stop(); }} style={{ color: 'var(--text-tertiary)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', padding: 8, borderRadius: 999 }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -884,7 +890,7 @@ export default function MapBrowse() {
                 <div className="flex flex-col items-center justify-center h-20 gap-2">
                   <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>还没有已发布的作品</p>
                   <button type="button" onClick={startCreateFlow} className="text-sm" style={{ color: 'var(--accent-text)' }}>
-                    去地图上创建 →
+                    去创建 →
                   </button>
                 </div>
               ) : sortedMyWorks.map((work) => renderMyWorkListItem(work, 'desktop'))}
@@ -1056,7 +1062,7 @@ export default function MapBrowse() {
               <div className="flex flex-col items-center justify-center h-20 gap-2">
                 <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>还没有已发布的作品</p>
                 <button type="button" onClick={startCreateFlow} className="text-sm" style={{ color: 'var(--accent-text)' }}>
-                  去地图上创建 →
+                  去创建 →
                 </button>
               </div>
             ) : sortedMyWorks.map((work) => renderMyWorkListItem(work, 'mobile'))}
@@ -1065,8 +1071,8 @@ export default function MapBrowse() {
 
         const myTitle = (
           <div className="px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>我的音乐</h2>
-            {myWorks.length > 0 && <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{myWorks.length} 首</p>}
+            <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>我的作品</h2>
+            {myWorks.length > 0 && <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{myWorks.length} 件</p>}
           </div>
         );
 
@@ -1104,9 +1110,9 @@ export default function MapBrowse() {
         const formContent = (
           <div style={{ padding: '0 20px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>创建声音角落</h2>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>创建作品</h2>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                先确认地点，再上传照片和文字，系统会为这个角落生成音乐。
+                上传照片，填写描述，然后生成音乐。
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1125,22 +1131,22 @@ export default function MapBrowse() {
             </div>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>上传你的角落照片</label>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>上传照片</label>
                 <ImageUpload onUpload={handleImageUpload} />
                 {uploadingImage && <p className="animate-pulse" style={{ fontSize: 12, color: 'var(--accent-text)', marginTop: 6 }}>正在上传图片…</p>}
-                {imagePreview && !uploadingImage && imageUrl && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 6 }}>上传成功 ✓</p>}
+                {imagePreview && !uploadingImage && imageUrl && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 6 }}>上传完成</p>}
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  角落标题（可选） <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>（{titleLength}/{TITLE_MAX_LENGTH}）</span>
+                  标题（可选） <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>（{titleLength}/{TITLE_MAX_LENGTH}）</span>
                 </label>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="给这个角落起一个名字…" maxLength={TITLE_MAX_LENGTH} className="glass-input w-full" />
+                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="输入标题" maxLength={TITLE_MAX_LENGTH} className="glass-input w-full" />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  角落故事（可选）<span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>（{storyLength}/{CORNER_STORY_MAX_LENGTH}）</span>
+                  描述（可选）<span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>（{storyLength}/{CORNER_STORY_MAX_LENGTH}）</span>
                 </label>
-                <textarea value={cornerStory} onChange={(e) => setCornerStory(e.target.value)} placeholder="写下你在这个角落发生过什么…" maxLength={CORNER_STORY_MAX_LENGTH} rows={4} className="glass-input w-full resize-none" style={{ padding: '10px 14px', fontSize: 14 }} />
+                <textarea value={cornerStory} onChange={(e) => setCornerStory(e.target.value)} placeholder="输入描述" maxLength={CORNER_STORY_MAX_LENGTH} rows={4} className="glass-input w-full resize-none" style={{ padding: '10px 14px', fontSize: 14 }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>风格标签</label>
@@ -1148,13 +1154,13 @@ export default function MapBrowse() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  音乐提示词（可选）<span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>（{promptLength}/100）</span>
+                  音乐描述（可选）<span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>（{promptLength}/100）</span>
                 </label>
-                <textarea value={musicPrompt} onChange={(e) => setMusicPrompt(e.target.value)} placeholder="描述你想要的音乐氛围…" maxLength={100} rows={3} className="glass-input w-full resize-none" style={{ padding: '10px 14px', fontSize: 14 }} />
+                <textarea value={musicPrompt} onChange={(e) => setMusicPrompt(e.target.value)} placeholder="描述想要的音乐风格…" maxLength={100} rows={3} className="glass-input w-full resize-none" style={{ padding: '10px 14px', fontSize: 14 }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  生成数量 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>默认 1 段，需要选择时可生成 3 段</span>
+                  生成数量 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>默认生成 1 段，也可以选择 3 段</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {([1, 3] as const).map((count) => (
@@ -1179,16 +1185,16 @@ export default function MapBrowse() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  创意程度 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{guidance <= 1 ? '保守' : guidance <= 2 ? '平衡' : guidance <= 3.5 ? '自由' : '大胆'}</span>
+                  变化程度 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{guidance <= 1 ? '稳定' : guidance <= 2 ? '适中' : guidance <= 3.5 ? '更多变化' : '变化较大'}</span>
                 </label>
                 <input type="range" min="0.5" max="5" step="0.5" value={guidance} onChange={(e) => setGuidance(parseFloat(e.target.value))} className="w-full" style={{ accentColor: 'rgb(160, 40, 45)' }} />
                 <div className="flex justify-between" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
-                  <span>保守</span><span>大胆</span>
+                  <span>稳定</span><span>变化较大</span>
                 </div>
               </div>
               {submitError && <p style={{ fontSize: 13, color: '#f87171', background: 'rgba(220,38,38,0.1)', borderRadius: 'var(--radius-md)', padding: '10px 16px' }}>{submitError}</p>}
               <button type="submit" disabled={!imageUrl || !uploadId || !uploadToken || !storyValid || !promptValid || submitting || uploadingImage} className="btn-primary w-full">
-                {submitting ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />提交中…</span>) : '提交声音角落'}
+                {submitting ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />提交中…</span>) : '提交并生成'}
               </button>
             </form>
           </div>
@@ -1257,8 +1263,8 @@ export default function MapBrowse() {
             <div className="px-5 pt-2 pb-4 md:pt-5 md:px-6 md:pb-6" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>管理作品</p>
-                  <h2 className="font-semibold mt-2" style={{ fontSize: 18, color: 'var(--text-primary)' }}>编辑标题和故事</h2>
+                  <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>作品管理</p>
+                  <h2 className="font-semibold mt-2" style={{ fontSize: 18, color: 'var(--text-primary)' }}>编辑标题和描述</h2>
                 </div>
                 <button
                   type="button"
@@ -1289,7 +1295,7 @@ export default function MapBrowse() {
                   value={editTitle}
                   onChange={(event) => setEditTitle(event.target.value)}
                   maxLength={TITLE_MAX_LENGTH}
-                  placeholder="给这个角落起一个名字…"
+                  placeholder="输入标题"
                   className="glass-input w-full"
                   disabled={editSaving || editDeleting}
                 />
@@ -1297,14 +1303,14 @@ export default function MapBrowse() {
 
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  角落故事 <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>（{editStoryLength}/{CORNER_STORY_MAX_LENGTH}）</span>
+                  描述 <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>（{editStoryLength}/{CORNER_STORY_MAX_LENGTH}）</span>
                 </label>
                 <textarea
                   value={editCornerStory}
                   onChange={(event) => setEditCornerStory(event.target.value)}
                   maxLength={CORNER_STORY_MAX_LENGTH}
                   rows={5}
-                  placeholder="补充这个角落的故事…"
+                  placeholder="补充描述"
                   className="glass-input w-full resize-none"
                   style={{ padding: '10px 14px', fontSize: 14 }}
                   disabled={editSaving || editDeleting}

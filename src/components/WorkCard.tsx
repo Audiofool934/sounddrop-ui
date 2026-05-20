@@ -138,7 +138,7 @@ export default function WorkCard({
           {musicPromptVisible && storyVisible && (
             <div className="mb-3">
               <p className="text-[11px] font-medium mb-1" style={{ color: 'var(--text-tertiary)', letterSpacing: '0.04em' }}>
-                音乐提示词
+                音乐描述
               </p>
               <p className="text-xs italic" style={{ color: 'var(--text-secondary)' }}>{work.musicPrompt}</p>
             </div>

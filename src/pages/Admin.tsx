@@ -513,7 +513,7 @@ export default function Admin() {
                           role="button"
                           tabIndex={0}
                           aria-pressed={expandedWork?.id === work.id}
-                          aria-label={expandedWork?.id === work.id ? `关闭《${work.title.trim() || '未命名角落'}》预览` : `放大并播放《${work.title.trim() || '未命名角落'}》`}
+                          aria-label={expandedWork?.id === work.id ? `关闭《${work.title.trim() || '未命名作品'}》预览` : `放大并播放《${work.title.trim() || '未命名作品'}》`}
                           onClick={() => handleThumbnailInteraction(work)}
                           onKeyDown={(event) => handleThumbnailKeyDown(event, work)}
                           className={`group relative block w-12 h-12 overflow-hidden rounded-[var(--radius-sm)] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] cursor-pointer ${(playingId === work.id || expandedWork?.id === work.id) ? 'ring-2 ring-[var(--accent)]' : ''}`}
@@ -562,7 +562,7 @@ export default function Admin() {
                       {/* Title / Region */}
                       <td className="px-4 py-3">
                         <p style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
-                          {work.title.trim() || '未命名角落'}
+                          {work.title.trim() || '未命名作品'}
                         </p>
                         <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>{work.regionName}</p>
                       </td>

@@ -81,7 +81,7 @@ export default function Auth() {
             className="text-[13px] text-center mb-6 -mt-4"
             style={{ color: 'var(--text-tertiary)' }}
           >
-            注册后，地图会直接显示你的登录用户名
+            注册后，你的用户名会显示在发布的作品旁
           </p>
         )}
 

@@ -140,7 +140,7 @@ export default function AudioSelect() {
     ?? (submission?.status === 'failed' ? 'failed' : null)
     ?? 'queued';
   const audioUrls = pollResult?.audioUrls ?? (initialAudioUrls.length > 0 ? initialAudioUrls : null);
-  const estimatedWait = pollResult?.estimatedWait ?? null;
+  const queue = pollResult?.queue ?? null;
 
   useEffect(() => {
     if (status === 'done' && audioUrls && audioUrls.length > 0) {
@@ -207,7 +207,7 @@ export default function AudioSelect() {
         {submission && (
           <button
             onClick={async () => {
-              if (!confirm('确定放弃这次投稿？生成的音乐将被丢弃。')) return;
+              if (!confirm('确定放弃这次提交吗？已生成的音乐不会保留。')) return;
               try {
                 await api.delete(`/submissions/${submission.id}`);
               } catch { /* ignore */ }
@@ -259,16 +259,20 @@ export default function AudioSelect() {
                     letterSpacing: '0.02em',
                   }}
                 >
-                  正在谱写旋律…
+                  正在生成音乐…
                 </h2>
                 <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  AI 正在感受你的照片，为它谱写旋律
+                  {status === 'queued' && queue?.jobsAhead !== null && queue?.jobsAhead !== undefined
+                    ? `前方 ${queue.jobsAhead} 个任务`
+                    : status === 'queued' && queue?.totalQueued !== null && queue?.totalQueued !== undefined
+                      ? `队列中约 ${queue.totalQueued} 个任务`
+                      : '当前任务正在处理'}
                 </p>
-                {estimatedWait !== null && (
-                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                    预计还需约 {estimatedWait} 秒
-                  </p>
-                )}
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                  {queue?.myActive !== null && queue?.myActive !== undefined
+                    ? `你的任务 ${queue.myActive} 个 · 可稍后在「我的作品」查看`
+                    : '可稍后在「我的作品」查看'}
+                </p>
               </div>
 
               {/* Animated dots */}
@@ -290,7 +294,7 @@ export default function AudioSelect() {
                 className="btn-secondary w-full text-center"
                 style={{ marginTop: 8, padding: '10px 24px', fontSize: 13 }}
               >
-                先去浏览地图
+                返回地图
               </button>
             </div>
           </div>
@@ -311,7 +315,7 @@ export default function AudioSelect() {
                   生成失败
                 </h2>
                 <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                  很抱歉，AI 服务暂时不可用，请稍后再试
+                  生成服务暂时不可用，请稍后再试
                 </p>
               </div>
               <button
@@ -319,7 +323,7 @@ export default function AudioSelect() {
                 className="btn-secondary"
                 style={{ width: '100%' }}
               >
-                重新提交
+                返回重试
               </button>
             </div>
           </div>
@@ -340,8 +344,8 @@ export default function AudioSelect() {
                 </div>
               )}
               <div className="text-center" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>选择你最喜欢的旋律</h2>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>AI 为你的角落生成了 {audioUrls.length} 段音乐</p>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>选择要发布的版本</h2>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>已生成 {audioUrls.length} 个版本</p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {audioUrls.slice(0, 3).map((url, i) => {
@@ -367,12 +371,12 @@ export default function AudioSelect() {
                   );
                 })}
               </div>
-              <p className="text-center" style={{ fontSize: 12, color: 'rgba(234,179,8,0.8)', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.15)', borderRadius: 'var(--radius-md)', padding: '10px 16px' }}>⚠️ 确认后将无法更改，请仔细试听</p>
+              <p className="text-center" style={{ fontSize: 12, color: 'rgba(234,179,8,0.8)', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.15)', borderRadius: 'var(--radius-md)', padding: '10px 16px' }}>发布后暂时不能更换音频，请先试听确认。</p>
               {confirmError && <p className="text-center" style={{ fontSize: 14, color: '#f87171', background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 'var(--radius-md)', padding: '10px 16px' }}>{confirmError}</p>}
               <button type="button" disabled={selectedIndex === null || confirming} onClick={handleConfirm} className="btn-primary w-full">
-                {confirming ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />发布中…</span>) : selectedIndex ? `确认选择版本 ${selectedIndex} 并发布` : '请先选择一个版本'}
+                {confirming ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />发布中…</span>) : selectedIndex ? `发布版本 ${selectedIndex}` : '请先选择一个版本'}
               </button>
-              <button type="button" disabled={confirming} onClick={() => { setSheetOpen(false); setSelectedIndex(null); setConfirmError(''); setEditMode(true); }} className="btn-secondary w-full" style={{ fontSize: 14 }}>都不喜欢？重新生成</button>
+              <button type="button" disabled={confirming} onClick={() => { setSheetOpen(false); setSelectedIndex(null); setConfirmError(''); setEditMode(true); }} className="btn-secondary w-full" style={{ fontSize: 14 }}>不满意，重新生成</button>
             </div>
           );
 
@@ -409,7 +413,7 @@ export default function AudioSelect() {
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{submission.regionName}</p>
                 <p className="truncate" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{getWorkTitle(submission)}</p>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>调整音乐提示词后重新生成</p>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>修改描述后重新生成</p>
               </div>
             </div>
             <div>
@@ -417,12 +421,12 @@ export default function AudioSelect() {
               <StyleTags onSelect={(tag) => setEditPrompt((prev) => prev ? `${prev}，${tag}` : tag)} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>音乐提示词（可选）</label>
-              <textarea value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} placeholder="描述你想要的音乐氛围..." maxLength={100} rows={3} className="glass-input w-full resize-none" style={{ padding: '10px 14px', fontSize: 14 }} />
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>音乐描述（可选）</label>
+              <textarea value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} placeholder="描述想要的音乐风格..." maxLength={100} rows={3} className="glass-input w-full resize-none" style={{ padding: '10px 14px', fontSize: 14 }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                生成数量 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>默认 1 段，需要挑选时可生成 3 段</span>
+                生成数量 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>默认生成 1 段，也可以选择 3 段</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {([1, 3] as const).map((count) => (
@@ -447,16 +451,16 @@ export default function AudioSelect() {
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                创意程度 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{editGuidance <= 1 ? '保守' : editGuidance <= 2 ? '平衡' : editGuidance <= 3.5 ? '自由' : '大胆'}</span>
+                变化程度 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{editGuidance <= 1 ? '稳定' : editGuidance <= 2 ? '适中' : editGuidance <= 3.5 ? '更多变化' : '变化较大'}</span>
               </label>
               <input type="range" min="0.5" max="5" step="0.5" value={editGuidance} onChange={(e) => setEditGuidance(parseFloat(e.target.value))} className="w-full" style={{ accentColor: 'rgb(160, 40, 45)' }} />
               <div className="flex justify-between" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
-                <span>保守</span><span>大胆</span>
+                <span>稳定</span><span>变化较大</span>
               </div>
             </div>
             {confirmError && <p className="text-center" style={{ fontSize: 13, color: '#f87171' }}>{confirmError}</p>}
             <button type="button" onClick={handleRegenerate} disabled={regenerating} className="btn-primary w-full">{regenerating ? '提交中…' : '重新生成'}</button>
-            <button type="button" onClick={() => { setEditSheetOpen(false); setTimeout(() => { setEditMode(false); setTimeout(() => setSheetOpen(true), 20); }, 360); }} className="btn-secondary w-full" style={{ fontSize: 14 }}>返回选择</button>
+            <button type="button" onClick={() => { setEditSheetOpen(false); setTimeout(() => { setEditMode(false); setTimeout(() => setSheetOpen(true), 20); }, 360); }} className="btn-secondary w-full" style={{ fontSize: 14 }}>返回选择版本</button>
           </div>
         );
 

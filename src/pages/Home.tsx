@@ -89,17 +89,17 @@ export default function Home() {
         {/* Hero — top half */}
         <div className="flex flex-col items-center justify-center text-center flex-1" style={{ minHeight: 0 }}>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.25, marginBottom: 12 }}>
-            把一段校园记忆，<br />变成一首只属于这里的音乐
+            SoundDrop<br />校园声音地图
           </h1>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 24, maxWidth: 340 }}>
-            上传校园照片，写下标题和角落故事，AI 会为这里谱写旋律
+            选择地点，上传照片和描述，生成音乐并发布到地图。
           </p>
           <Link to="/map" className="btn-primary text-center" style={{ padding: '13px 36px', fontSize: 15 }}>
             进入声音地图
           </Link>
           {user && (
             <Link to="/map?panel=my" className="mt-3" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
-              我的音乐 →
+              我的作品 →
             </Link>
           )}
         </div>
@@ -108,7 +108,7 @@ export default function Home() {
         {examples.length > 0 && (
           <div style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
             <div className="flex items-baseline justify-between mb-3">
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>来自校园的声音</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>最新作品</span>
               <Link to="/map" style={{ fontSize: 12, color: 'var(--accent-text)' }}>查看全部 →</Link>
             </div>
             <div ref={galleryRef} className="overflow-x-auto hide-scrollbar" style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', margin: '0 -24px', padding: '0 24px' }}>
@@ -156,7 +156,7 @@ export default function Home() {
 
         {/* Footer */}
         <div className="text-center py-3" style={{ flexShrink: 0 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>AI Music Lab · 中国人民大学</span>
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Music Lab · 中国人民大学</span>
         </div>
       </div>
     </div>

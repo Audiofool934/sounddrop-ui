@@ -17,7 +17,7 @@ export function getWorkSummary(source: WorkTextSource): string {
   return (
     normalizeText(source.cornerStory) ||
     normalizeText(source.musicPrompt) ||
-    '还没有留下角落故事'
+    '暂无描述'
   );
 }
 
