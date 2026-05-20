@@ -73,6 +73,7 @@ const MIN_PIN_SIZE = 28;
 const MAX_PIN_SIZE = 74;
 const SELECTED_PIN_SIZE = 84;
 const FAN_DIM_OPACITY = 0.35;
+const CREATE_PIN_PANE = 'create-pin-pane';
 
 function createEmptyFanLayout(): FanLayoutState {
   return {
@@ -176,6 +177,12 @@ function initMap(container: HTMLDivElement): L.Map {
   });
 
   L.imageOverlay(MAP_CONFIG.image, bounds).addTo(map);
+  map.createPane(CREATE_PIN_PANE);
+  const createPinPane = map.getPane(CREATE_PIN_PANE);
+  if (createPinPane) {
+    createPinPane.style.zIndex = '900';
+    createPinPane.style.pointerEvents = 'none';
+  }
   map.fitBounds(bounds);
   // Start a bit more zoomed-in so the map feels full, not empty
   map.setZoom(map.getZoom() + 1, { animate: false });
@@ -273,7 +280,12 @@ export default function CampusMap(props: CampusMapProps) {
     if (createMarkerRef.current) {
       createMarkerRef.current.setLatLng(latlng);
     } else {
-      createMarkerRef.current = L.marker(latlng, { icon: PIN_ICON }).addTo(map);
+      createMarkerRef.current = L.marker(latlng, {
+        icon: PIN_ICON,
+        pane: CREATE_PIN_PANE,
+        zIndexOffset: 1000000,
+        interactive: false,
+      }).addTo(map);
     }
 
     const origX = x / MAP_CONFIG.scale;
@@ -304,7 +316,12 @@ export default function CampusMap(props: CampusMapProps) {
         if (markerRef.current) {
           markerRef.current.setLatLng(e.latlng);
         } else {
-          const marker = L.marker(e.latlng, { icon: PIN_ICON }).addTo(map);
+          const marker = L.marker(e.latlng, {
+            icon: PIN_ICON,
+            pane: CREATE_PIN_PANE,
+            zIndexOffset: 1000000,
+            interactive: false,
+          }).addTo(map);
           markerRef.current = marker;
         }
 
