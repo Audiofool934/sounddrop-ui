@@ -42,6 +42,7 @@ export default function AudioSelect() {
   const [selectedIndex, setSelectedIndex] = useState<1 | 2 | 3 | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
 
   // Edit mode: user wants to adjust prompt and regenerate
   const [editMode, setEditMode] = useState(false);
@@ -159,9 +160,13 @@ export default function AudioSelect() {
     setConfirmError('');
     setConfirming(true);
     try {
-      const selectRes = await api.post(`/generations/${generationId}/select`, { selectedIndex });
+      const selectRes = await api.post(`/generations/${generationId}/select`, { selectedIndex, visibility });
       const { workId, mapX, mapY } = selectRes.data.data;
-      navigate(`/map?highlight=${workId}&x=${mapX}&y=${mapY}`);
+      if (workId) {
+        navigate(`/map?highlight=${workId}&x=${mapX}&y=${mapY}`);
+      } else {
+        navigate('/map?panel=my');
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: { message?: string } } } })
@@ -367,15 +372,48 @@ export default function AudioSelect() {
                         onClick={(e) => e.stopPropagation()}
                         onPlay={() => handleAudioPlay(i)}
                       />
+                      <a
+                        href={url}
+                        download={`sounddrop-version-${idx}.mp3`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex mt-2 text-xs"
+                        style={{ color: 'var(--accent-text)' }}
+                      >
+                        下载版本 {idx}
+                      </a>
                     </button>
                   );
                 })}
               </div>
-              <p className="text-center" style={{ fontSize: 12, color: 'rgba(234,179,8,0.8)', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.15)', borderRadius: 'var(--radius-md)', padding: '10px 16px' }}>发布后暂时不能更换音频，请先试听确认。</p>
+              <div className="glass-panel" style={{ borderRadius: 'var(--radius-md)', padding: 12 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>可见度</p>
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="作品可见度">
+                  {(['public', 'private'] as const).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={visibility === value}
+                      onClick={() => setVisibility(value)}
+                      className="rounded-[var(--radius-md)] transition-all text-left"
+                      style={{
+                        padding: '10px 12px',
+                        border: visibility === value ? '1px solid var(--accent-border)' : '1px solid var(--glass-border)',
+                        background: visibility === value ? 'var(--accent-soft)' : 'rgba(255,255,255,0.04)',
+                      }}
+                    >
+                      <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: visibility === value ? 'var(--accent-text)' : 'var(--text-secondary)' }}>{value === 'public' ? '公开' : '仅自己可见'}</span>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{value === 'public' ? '发布到地图' : '保存，不上地图'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-center" style={{ fontSize: 12, color: 'rgba(234,179,8,0.8)', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.15)', borderRadius: 'var(--radius-md)', padding: '10px 16px' }}>选择后暂时不能更换音频，请先试听确认。</p>
               {confirmError && <p className="text-center" style={{ fontSize: 14, color: '#f87171', background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 'var(--radius-md)', padding: '10px 16px' }}>{confirmError}</p>}
               <button type="button" disabled={selectedIndex === null || confirming} onClick={handleConfirm} className="btn-primary w-full">
-                {confirming ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />发布中…</span>) : selectedIndex ? `发布版本 ${selectedIndex}` : '请先选择一个版本'}
+                {confirming ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />保存中…</span>) : selectedIndex ? (visibility === 'public' ? `发布版本 ${selectedIndex}` : `保存版本 ${selectedIndex}`) : '请先选择一个版本'}
               </button>
+              <button type="button" disabled={confirming} onClick={() => navigate('/map?panel=my')} className="btn-secondary w-full" style={{ fontSize: 14 }}>暂不选择，稍后再说</button>
               <button type="button" disabled={confirming} onClick={() => { setSheetOpen(false); setSelectedIndex(null); setConfirmError(''); setEditMode(true); }} className="btn-secondary w-full" style={{ fontSize: 14 }}>不满意，重新生成</button>
             </div>
           );
