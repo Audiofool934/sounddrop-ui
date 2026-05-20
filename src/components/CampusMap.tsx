@@ -89,7 +89,7 @@ const CREATE_PIN_HEIGHT = 42;
 const PIN_ICON = L.divIcon({
   html: `
     <svg width="${CREATE_PIN_WIDTH}" height="${CREATE_PIN_HEIGHT}" viewBox="0 0 30 42" aria-hidden="true" focusable="false" style="display:block;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.35))">
-      <path d="M15 41C15 41 3 25.8 3 15.4C3 8.55 8.37 3 15 3C21.63 3 27 8.55 27 15.4C27 25.8 15 41 15 41Z" fill="#ff4d3d" stroke="white" stroke-width="2" />
+      <path d="M15 41C15 41 3 25.8 3 15.4C3 8.55 8.37 3 15 3C21.63 3 27 8.55 27 15.4C27 25.8 15 41 15 41Z" fill="var(--accent)" stroke="rgba(255,255,255,0.92)" stroke-width="2" />
       <circle cx="15" cy="15.4" r="5.2" fill="white" opacity="0.95" />
     </svg>
   `,
