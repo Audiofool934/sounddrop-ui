@@ -96,7 +96,7 @@ export default function MapBrowse() {
   const [cornerStory, setCornerStory] = useState('');
   const [musicPrompt, setMusicPrompt] = useState('');
   const [guidance, setGuidance] = useState(2.0);
-  const [numSongs, setNumSongs] = useState<1 | 3>(1);
+  const [numSongs, setNumSongs] = useState<1 | 2 | 3>(1);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -1160,13 +1160,15 @@ export default function MapBrowse() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  生成数量 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>默认生成 1 段，也可以选择 3 段</span>
+                  生成数量 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>默认 1，最多 3</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {([1, 3] as const).map((count) => (
+                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="生成数量">
+                  {([1, 2, 3] as const).map((count) => (
                     <button
                       key={count}
                       type="button"
+                      role="radio"
+                      aria-checked={numSongs === count}
                       onClick={() => setNumSongs(count)}
                       className="rounded-[var(--radius-md)] transition-all"
                       style={{
@@ -1174,11 +1176,11 @@ export default function MapBrowse() {
                         border: numSongs === count ? '1px solid var(--accent-border)' : '1px solid var(--glass-border)',
                         background: numSongs === count ? 'var(--accent-soft)' : 'rgba(255,255,255,0.04)',
                         color: numSongs === count ? 'var(--accent-text)' : 'var(--text-secondary)',
-                        fontSize: 13,
-                        fontWeight: 600,
+                        fontSize: 15,
+                        fontWeight: 700,
                       }}
                     >
-                      {count === 1 ? '生成 1 段' : '生成 3 段'}
+                      {count}
                     </button>
                   ))}
                 </div>
