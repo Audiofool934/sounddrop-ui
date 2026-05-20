@@ -1,6 +1,6 @@
-# SoundDrop UI
+# Thumbdrop UI
 
-SoundDrop UI is the frontend for a campus sound-map experience: users choose a place on a map, upload a photo, describe a musical feeling, generate audio through a backend AI service, and publish the selected result back onto the shared map.
+Thumbdrop UI is the frontend for a campus sound-map experience: users choose a place on a map, upload a photo, describe a musical feeling, generate audio through a backend AI service, and publish the selected result back onto the shared map.
 
 This repository contains only the React/Vite UI. It does not include the production backend, database, deployment stack, or music-generation model.
 
@@ -48,7 +48,7 @@ The UI uses a REST API under `/api/v1` for auth, submissions, generations, works
 
 ## Map asset
 
-The included map image is used as a pixel-coordinate Leaflet overlay. If you adapt SoundDrop to another campus or place, replace `public/maps/map-zgc-web.jpg` and update `MAP_CONFIG` in `src/config.ts`.
+The included map image is used as a pixel-coordinate Leaflet overlay. If you adapt Thumbdrop to another campus or place, replace `public/maps/map-zgc-web.jpg` and update `MAP_CONFIG` in `src/config.ts`.
 
 ## License
 

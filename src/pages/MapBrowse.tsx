@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useDragSheet } from '../hooks/useDragSheet';
 import { EditIcon, HeartIcon, TrashIcon } from '../components/Icons';
 import api from '../api/client';
+import { DEMO_REGIONS, DEMO_WORKS } from '../demoData';
 import type { Work, Region } from '../types';
 import { getWorkSummary, getWorkTitle } from '../utils/workText';
 
@@ -130,7 +131,9 @@ export default function MapBrowse() {
         if (worksRes.data.success && worksRes.data.data) setWorks(worksRes.data.data);
         if (regionsRes.data.success && regionsRes.data.data) setRegions(regionsRes.data.data);
       } catch {
-        setMapError('网络错误，请检查连接');
+        setWorks(DEMO_WORKS);
+        setRegions(DEMO_REGIONS);
+        setMapError('');
       } finally {
         setMapLoading(false);
       }
