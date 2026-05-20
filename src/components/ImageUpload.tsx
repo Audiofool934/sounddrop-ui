@@ -9,6 +9,7 @@ export default function ImageUpload({ onUpload }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState('正在处理图片…');
   const prevPreviewRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -22,6 +23,7 @@ export default function ImageUpload({ onUpload }: Props) {
     if (!file) return;
 
     setLoading(true);
+    setLoadingText('正在处理图片…');
     try {
       const blob = await compressImage(file);
       const previewUrl = URL.createObjectURL(blob);
@@ -57,11 +59,12 @@ export default function ImageUpload({ onUpload }: Props) {
       />
 
       {loading ? (
-        <div className="flex items-center justify-center h-40">
+        <div className="flex flex-col items-center justify-center h-40 gap-3">
           <div
             className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
             style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
           />
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{loadingText}</span>
         </div>
       ) : preview ? (
         <div className="relative group">
@@ -85,7 +88,7 @@ export default function ImageUpload({ onUpload }: Props) {
             点击上传照片
           </span>
           <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
-            JPG/PNG，最大 5MB
+            自动压缩后上传，支持手机照片
           </span>
         </div>
       )}

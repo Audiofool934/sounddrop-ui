@@ -8,6 +8,7 @@ import { getWorkSummary, getWorkTitle } from '../utils/workText';
 interface SubmissionData {
   id: string;
   imageUrl: string;
+  thumbnailUrl: string | null;
   regionName: string;
   title: string;
   cornerStory: string;
@@ -77,6 +78,7 @@ export default function AudioSelect() {
     if (!submission || regenerating) return;
     pauseAllAudio();
     setRegenerating(true);
+    setConfirmError('');
     try {
       // Update prompt on backend if changed
       if (editPrompt.trim() !== (submission.musicPrompt || '')) {
@@ -91,11 +93,45 @@ export default function AudioSelect() {
       setInitialGenStatus('queued');
       setInitialAudioUrls([]);
       setSelectedIndex(null);
+      setSheetOpen(false);
       setEditSheetOpen(false);
       setEditMode(false);
+      setSubmission((prev) => prev ? { ...prev, status: 'generating' } : prev);
       restartPolling();
-    } catch {
-      setConfirmError('重新生成失败，请重试');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ?? '重新生成失败，请重试';
+      setConfirmError(msg);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleRetryGeneration = async () => {
+    if (!submission || regenerating) return;
+    pauseAllAudio();
+    setRegenerating(true);
+    setConfirmError('');
+    try {
+      const res = await api.post(`/generations/${submission.id}/regenerate`, {
+        guidance: editGuidance,
+        numSongs: editNumSongs,
+      });
+      setGenerationId(res.data.data.generationId);
+      setInitialGenStatus('queued');
+      setInitialAudioUrls([]);
+      setSelectedIndex(null);
+      setSheetOpen(false);
+      setEditSheetOpen(false);
+      setEditMode(false);
+      setSubmission((prev) => prev ? { ...prev, status: 'generating' } : prev);
+      restartPolling();
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ?? '重新生成失败，请重试';
+      setConfirmError(msg);
     } finally {
       setRegenerating(false);
     }
@@ -212,7 +248,7 @@ export default function AudioSelect() {
         {submission && (
           <button
             onClick={async () => {
-              if (!confirm('确定放弃这次提交吗？已生成的音乐不会保留。')) return;
+              if (!confirm('确定取消这次生成吗？当前未发布的结果不会保留。')) return;
               try {
                 await api.delete(`/submissions/${submission.id}`);
               } catch { /* ignore */ }
@@ -221,7 +257,7 @@ export default function AudioSelect() {
             className="glass-pill"
             style={{ color: '#f87171' }}
           >
-            放弃
+            取消
           </button>
         )}
       </div>
@@ -275,8 +311,8 @@ export default function AudioSelect() {
                 </p>
                 <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
                   {queue?.myActive !== null && queue?.myActive !== undefined
-                    ? `你的任务 ${queue.myActive} 个 · 可稍后在「我的作品」查看`
-                    : '可稍后在「我的作品」查看'}
+                    ? `你的任务 ${queue.myActive} 个 · 可稍后在「待完成作品」查看`
+                    : '可稍后在「待完成作品」查看'}
                 </p>
               </div>
 
@@ -320,15 +356,48 @@ export default function AudioSelect() {
                   生成失败
                 </h2>
                 <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                  生成服务暂时不可用，请稍后再试
+                  可以使用原来的图片重新生成
                 </p>
               </div>
+              {submission && (
+                <div className="w-full flex items-center gap-3 p-3 text-left" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)' }}>
+                  <img src={submission.thumbnailUrl || submission.imageUrl} alt="" decoding="async" className="object-cover flex-shrink-0" style={{ width: 52, height: 52, borderRadius: 'var(--radius-sm)' }} />
+                  <div style={{ minWidth: 0 }}>
+                    <p className="truncate" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{getWorkTitle(submission)}</p>
+                    <p className="truncate" style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{submission.regionName}</p>
+                  </div>
+                </div>
+              )}
+              {confirmError && (
+                <p className="w-full" style={{ fontSize: 13, color: '#fca5a5', background: 'rgba(220,38,38,0.1)', borderRadius: 'var(--radius-md)', padding: '10px 14px' }}>
+                  {confirmError}
+                </p>
+              )}
               <button
-                onClick={() => navigate('/submit')}
-                className="btn-secondary"
+                onClick={handleRetryGeneration}
+                disabled={regenerating}
+                className="btn-primary"
                 style={{ width: '100%' }}
               >
-                返回重试
+                {regenerating ? '提交中…' : '用原图重新生成'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setConfirmError(''); setEditMode(true); }}
+                disabled={regenerating}
+                className="btn-secondary"
+                style={{ width: '100%', fontSize: 14 }}
+              >
+                修改描述后重新生成
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/map?panel=my')}
+                disabled={regenerating}
+                className="btn-secondary"
+                style={{ width: '100%', fontSize: 14 }}
+              >
+                返回待完成作品
               </button>
             </div>
           </div>
@@ -340,7 +409,7 @@ export default function AudioSelect() {
             <div style={{ padding: '0 20px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
               {submission && (
                 <div className="glass-panel flex items-center gap-4 p-4" style={{ borderRadius: 'var(--radius-md)' }}>
-                  <img src={submission.imageUrl} alt="" className="object-cover flex-shrink-0" style={{ width: 56, height: 56, borderRadius: 'var(--radius-sm)', border: '1px solid var(--glass-border)' }} />
+                  <img src={submission.thumbnailUrl || submission.imageUrl} alt="" decoding="async" className="object-cover flex-shrink-0" style={{ width: 56, height: 56, borderRadius: 'var(--radius-sm)', border: '1px solid var(--glass-border)' }} />
                   <div style={{ minWidth: 0 }}>
                     <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{submission.regionName}</p>
                     <p className="truncate" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{getWorkTitle(submission)}</p>
@@ -430,7 +499,7 @@ export default function AudioSelect() {
 
               {/* Desktop: right sidebar */}
               <div
-                className={`hidden md:flex absolute top-0 right-0 h-full w-80 flex-col transition-transform duration-300 ${sheetOpen ? 'translate-x-0' : 'translate-x-full'}`}
+                className={`hidden md:flex absolute top-0 right-0 h-full w-96 flex-col transition-transform duration-300 ${sheetOpen ? 'translate-x-0' : 'translate-x-full'}`}
                 style={{ zIndex: 10, background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', borderLeft: '1px solid var(--glass-border)', borderRadius: 'var(--radius-lg) 0 0 var(--radius-lg)' }}
               >
                 <div className="flex-1 overflow-y-auto pt-4">
@@ -447,7 +516,7 @@ export default function AudioSelect() {
         const editContent = (
           <div style={{ padding: '0 20px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div className="glass-panel flex items-center gap-4 p-4" style={{ borderRadius: 'var(--radius-md)' }}>
-              <img src={submission.imageUrl} alt="" className="object-cover flex-shrink-0" style={{ width: 56, height: 56, borderRadius: 'var(--radius-sm)', border: '1px solid var(--glass-border)' }} />
+              <img src={submission.thumbnailUrl || submission.imageUrl} alt="" decoding="async" className="object-cover flex-shrink-0" style={{ width: 56, height: 56, borderRadius: 'var(--radius-sm)', border: '1px solid var(--glass-border)' }} />
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{submission.regionName}</p>
                 <p className="truncate" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{getWorkTitle(submission)}</p>
@@ -500,7 +569,20 @@ export default function AudioSelect() {
             </div>
             {confirmError && <p className="text-center" style={{ fontSize: 13, color: '#f87171' }}>{confirmError}</p>}
             <button type="button" onClick={handleRegenerate} disabled={regenerating} className="btn-primary w-full">{regenerating ? '提交中…' : '重新生成'}</button>
-            <button type="button" onClick={() => { setEditSheetOpen(false); setTimeout(() => { setEditMode(false); setTimeout(() => setSheetOpen(true), 20); }, 360); }} className="btn-secondary w-full" style={{ fontSize: 14 }}>返回选择版本</button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditSheetOpen(false);
+                setTimeout(() => {
+                  setEditMode(false);
+                  if (status === 'done') setTimeout(() => setSheetOpen(true), 20);
+                }, 360);
+              }}
+              className="btn-secondary w-full"
+              style={{ fontSize: 14 }}
+            >
+              {status === 'done' ? '返回选择版本' : '返回失败页'}
+            </button>
           </div>
         );
 
@@ -514,7 +596,7 @@ export default function AudioSelect() {
             </div>
             {/* Desktop */}
             <div
-              className={`hidden md:flex absolute top-0 right-0 h-full w-80 flex-col transition-transform duration-300 ${editSheetOpen ? 'translate-x-0' : 'translate-x-full'}`}
+              className={`hidden md:flex absolute top-0 right-0 h-full w-96 flex-col transition-transform duration-300 ${editSheetOpen ? 'translate-x-0' : 'translate-x-full'}`}
               style={{ zIndex: 10, background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', borderLeft: '1px solid var(--glass-border)', borderRadius: 'var(--radius-lg) 0 0 var(--radius-lg)' }}
             >
               <div className="flex-1 overflow-y-auto pt-4">{editContent}</div>

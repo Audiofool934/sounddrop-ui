@@ -1,36 +1,42 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../api/client';
 import { DEMO_WORKS } from '../demoData';
 import { DEMO_FALLBACK_ENABLED } from '../demoMode';
 import { getWorkTitle } from '../utils/workText';
+import type { Work } from '../types';
 
-interface ExampleWork {
-  id: string;
-  regionName: string;
-  title: string;
-  cornerStory: string;
-  imageUrl: string;
-  thumbnailUrl: string | null;
-  selectedAudioUrl: string;
-  loginAccount: string;
-  musicPrompt: string;
-}
+type GalleryMode = 'popular' | 'recent';
+type ExampleWork = Work & { displayStatus?: string };
 
 export default function Home() {
   const { user } = useAuth();
   const [examples, setExamples] = useState<ExampleWork[]>([]);
+  const [galleryMode, setGalleryMode] = useState<GalleryMode>('popular');
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    api.get('/works/latest?limit=20').then((res) => {
-      if (res.data.success) setExamples(res.data.data);
+    api.get('/works').then((res) => {
+      if (res.data.success) {
+        setExamples((res.data.data as ExampleWork[]).filter((work) => work.displayStatus !== 'hidden'));
+      }
     }).catch(() => {
       if (DEMO_FALLBACK_ENABLED) setExamples(DEMO_WORKS);
     });
   }, []);
+
+  const galleryWorks = useMemo(() => {
+    const sorted = [...examples].sort((a, b) => {
+      if (galleryMode === 'popular') {
+        const likeDiff = b.likeCount - a.likeCount;
+        if (likeDiff !== 0) return likeDiff;
+      }
+      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+    });
+    return sorted.slice(0, 20);
+  }, [examples, galleryMode]);
 
   const togglePlay = (work: ExampleWork) => {
     if (playingId === work.id) {
@@ -75,7 +81,20 @@ export default function Home() {
     el.addEventListener('scroll', updateCardScales, { passive: true });
     updateCardScales();
     return () => el.removeEventListener('scroll', updateCardScales);
-  }, [examples, updateCardScales]);
+  }, [galleryWorks, updateCardScales]);
+
+  useEffect(() => {
+    galleryRef.current?.scrollTo({ left: 0 });
+    requestAnimationFrame(updateCardScales);
+  }, [galleryMode, updateCardScales]);
+
+  useEffect(() => {
+    if (!playingId || galleryWorks.some((work) => work.id === playingId)) return;
+
+    audioRef.current?.pause();
+    const reset = window.setTimeout(() => setPlayingId(null), 0);
+    return () => window.clearTimeout(reset);
+  }, [galleryWorks, playingId]);
 
   return (
     <div className="relative flex flex-col" style={{ height: '100dvh', background: 'var(--bg-base)', overflow: 'hidden' }}>
@@ -106,15 +125,49 @@ export default function Home() {
         </div>
 
         {/* Gallery — bottom portion */}
-        {examples.length > 0 && (
+        {galleryWorks.length > 0 && (
           <div style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
-            <div className="flex items-baseline justify-between mb-3">
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>最新作品</span>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center min-w-0">
+                <div
+                  className="flex items-center"
+                  role="tablist"
+                  aria-label="首页作品排序"
+                  style={{ padding: 2, borderRadius: 999, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  {(['popular', 'recent'] as const).map((mode) => {
+                    const active = galleryMode === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        onClick={() => setGalleryMode(mode)}
+                        className="transition-colors"
+                        style={{
+                          height: 24,
+                          padding: '0 9px',
+                          borderRadius: 999,
+                          border: 'none',
+                          background: active ? 'var(--accent-soft)' : 'transparent',
+                          color: active ? 'var(--accent-text)' : 'var(--text-tertiary)',
+                          fontSize: 12,
+                          fontWeight: active ? 700 : 500,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {mode === 'popular' ? '最热' : '最新'}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <Link to="/map" style={{ fontSize: 12, color: 'var(--accent-text)' }}>查看全部 →</Link>
             </div>
             <div ref={galleryRef} className="overflow-x-auto hide-scrollbar" style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', margin: '0 -24px', padding: '0 24px' }}>
               <div className="flex gap-3 items-center" style={{ width: 'max-content', padding: '8px calc(50vw - min(22vw, 100px))' }}>
-                {examples.map((w, i) => {
+                {galleryWorks.map((w, i) => {
                   const isPlaying = playingId === w.id;
                   return (
                     <button

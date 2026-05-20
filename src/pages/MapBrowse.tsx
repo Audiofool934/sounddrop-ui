@@ -69,9 +69,10 @@ export default function MapBrowse() {
   // Fly-to target (for "my music" → locate on map)
   const [flyTarget, setFlyTarget] = useState<{ x: number; y: number; offsetX?: number; offsetY?: number } | null>(null);
 
-  // My works panel — only published works
+  // My works panel
   const [myPanelOpen, setMyPanelOpen] = useState(false);
   const [myWorks, setMyWorks] = useState<Work[]>([]);
+  const [myPendingSubmissions, setMyPendingSubmissions] = useState<MySubmission[]>([]);
   const [myLoading, setMyLoading] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
@@ -79,6 +80,7 @@ export default function MapBrowse() {
   const [editCornerStory, setEditCornerStory] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [editDeleting, setEditDeleting] = useState(false);
+  const [pendingDeletingId, setPendingDeletingId] = useState<string | null>(null);
   const [editError, setEditError] = useState('');
 
   // Status bar: active generation tracking
@@ -216,7 +218,7 @@ export default function MapBrowse() {
     }
 
     // Otherwise, do a one-time check for any active generation
-    api.get('/submissions/all').then((res) => {
+    api.get(`/submissions/all?ts=${Date.now()}`).then((res) => {
       const subs: MySubmission[] = res.data.data || [];
       const generating = subs.find(
         (s) => s.submission.status === 'generating' && s.generation && ['queued', 'processing'].includes(s.generation.status)
@@ -240,7 +242,7 @@ export default function MapBrowse() {
     };
   }, [user, searchParams, startTracking]);
 
-  // Fetch my published works when panel opens
+  // Fetch my works and unfinished submissions when panel opens
   const openMyPanel = useCallback(async () => {
     if (!user) { navigate('/auth'); return; }
     setMyPanelOpen(true);
@@ -248,10 +250,30 @@ export default function MapBrowse() {
     setSidebarWorks(null);
     setSelectedWork(null);
     try {
-      // Filter all works to find ones by this user
+      const submissionsRes = await api.get<{ success: boolean; data: MySubmission[] }>(`/submissions/all?ts=${Date.now()}`);
+      const pending = (submissionsRes.data.data || []).filter((item) => {
+        if (item.work) return false;
+        const submissionStatus = item.submission.status;
+        const generationStatus = item.generation?.status;
+        return (
+          submissionStatus === 'generating' ||
+          submissionStatus === 'selecting' ||
+          submissionStatus === 'failed' ||
+          generationStatus === 'queued' ||
+          generationStatus === 'processing' ||
+          generationStatus === 'done' ||
+          generationStatus === 'failed'
+        );
+      });
+      setMyPendingSubmissions(pending);
+
       const myPublished = works.filter((w) => w.loginAccount === user.loginAccount);
       setMyWorks(myPublished);
-    } catch { /* ignore */ }
+    } catch {
+      setMyPendingSubmissions([]);
+      const myPublished = works.filter((w) => w.loginAccount === user.loginAccount);
+      setMyWorks(myPublished);
+    }
     finally {
       setMyLoading(false);
       setTimeout(() => myDrag.applyDefault(), 50);
@@ -538,6 +560,10 @@ export default function MapBrowse() {
 
   const sortedSidebarWorks = sidebarWorks ? [...sidebarWorks].sort(sortFn) : null;
   const sortedMyWorks = [...myWorks].sort(sortFn);
+  const sortedMyPendingSubmissions = [...myPendingSubmissions].sort(
+    (a, b) => new Date(b.submission.createdAt).getTime() - new Date(a.submission.createdAt).getTime(),
+  );
+  const myPanelItemCount = myWorks.length + myPendingSubmissions.length;
 
   // ── Desktop right-side surfaces ──
   const desktopSidebarVisible = sidebarOpen || myPanelOpen;
@@ -560,6 +586,58 @@ export default function MapBrowse() {
     closeMyPanel();
     setFlyTarget({ x: work.mapX, y: work.mapY, offsetY: 250 });
     setTimeout(() => setSelectedWork(work), 900);
+  };
+
+  const handlePendingSubmissionClick = (item: MySubmission) => {
+    closeMyPanel();
+    navigate(`/select?id=${item.submission.id}`);
+  };
+
+  const handlePendingSubmissionDelete = async (item: MySubmission) => {
+    if (pendingDeletingId) return;
+    if (!window.confirm('确定删除这个生成失败的作品吗？图片和生成记录都会被移除。')) return;
+
+    setPendingDeletingId(item.submission.id);
+    try {
+      await api.delete(`/submissions/${item.submission.id}`);
+      setMyPendingSubmissions((prev) => prev.filter((pending) => pending.submission.id !== item.submission.id));
+      if (activeGen?.submissionId === item.submission.id) {
+        setActiveGen(null);
+        trackingIdRef.current = null;
+      }
+    } catch (err: unknown) {
+      window.alert(getApiErrorMessage(err, '删除失败，请重试'));
+    } finally {
+      setPendingDeletingId(null);
+    }
+  };
+
+  const getPendingSubmissionStatus = (item: MySubmission) => {
+    if (item.submission.status === 'selecting' || item.generation?.status === 'done') {
+      return {
+        label: '待选择',
+        action: '去选择',
+        color: 'var(--accent-text)',
+        background: 'var(--accent-soft)',
+        border: 'var(--accent-border)',
+      };
+    }
+    if (item.submission.status === 'failed' || item.generation?.status === 'failed') {
+      return {
+        label: '生成失败',
+        action: '查看',
+        color: '#fca5a5',
+        background: 'rgba(220,38,38,0.12)',
+        border: 'rgba(248,113,113,0.24)',
+      };
+    }
+    return {
+      label: '生成中',
+      action: '查看进度',
+      color: 'var(--text-secondary)',
+      background: 'rgba(255,255,255,0.06)',
+      border: 'rgba(255,255,255,0.1)',
+    };
   };
 
   const renderOwnerActionButtons = (work: Work, variant: 'card' | 'list') => {
@@ -621,6 +699,85 @@ export default function MapBrowse() {
   const selectedWorkOwnerActions = selectedWorkOwned && selectedWork
     ? renderOwnerActionButtons(selectedWork, 'card')
     : undefined;
+
+  const renderPendingSubmissionListItem = (item: MySubmission, variant: 'desktop' | 'mobile') => {
+    const status = getPendingSubmissionStatus(item);
+    const thumbnail = item.submission.thumbnailUrl || item.submission.imageUrl;
+    const canQuickDelete = item.submission.status === 'failed' || item.generation?.status === 'failed';
+    const isDeleting = pendingDeletingId === item.submission.id;
+
+    return (
+      <div
+        key={item.submission.id}
+        className="w-full flex items-center gap-2 p-2.5 rounded-[var(--radius-sm)] transition-colors"
+        style={{
+          background: variant === 'desktop' ? 'rgba(255,255,255,0.03)' : 'transparent',
+          border: variant === 'desktop' ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(255,255,255,0.04)',
+          marginBottom: 10,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = variant === 'desktop' ? 'rgba(255,255,255,0.03)' : 'transparent'; }}
+      >
+        <button
+          type="button"
+          onClick={() => handlePendingSubmissionClick(item)}
+          className="flex flex-1 min-w-0 items-center gap-3 text-left"
+          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+        >
+          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            {thumbnail ? (
+              <img src={thumbnail} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-xs" style={{ color: 'var(--text-tertiary)' }}>音</div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>{getWorkTitle(item.submission)}</p>
+              <span
+                className="text-[11px] flex-shrink-0"
+                style={{
+                  color: status.color,
+                  background: status.background,
+                  border: `1px solid ${status.border}`,
+                  borderRadius: 999,
+                  padding: '2px 7px',
+                }}
+              >
+                {status.label}
+              </span>
+            </div>
+            <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+              {item.submission.regionName} · {getWorkSummary(item.submission)}
+            </p>
+          </div>
+          <span className="text-xs flex-shrink-0" style={{ color: status.color }}>{status.action}</span>
+        </button>
+        {canQuickDelete && (
+          <button
+            type="button"
+            aria-label="删除失败作品"
+            title="删除失败作品"
+            onClick={() => handlePendingSubmissionDelete(item)}
+            disabled={isDeleting}
+            className="flex items-center justify-center flex-shrink-0 transition-colors"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 999,
+              background: 'rgba(220,38,38,0.12)',
+              color: '#fca5a5',
+              border: '1px solid rgba(248,113,113,0.24)',
+              opacity: isDeleting ? 0.6 : 1,
+              cursor: isDeleting ? 'default' : 'pointer',
+            }}
+          >
+            <TrashIcon size={15} />
+          </button>
+        )}
+      </div>
+    );
+  };
 
   const renderMyWorkListItem = (work: Work, variant: 'desktop' | 'mobile') => (
     <div
@@ -769,8 +926,8 @@ export default function MapBrowse() {
 
       {/* ── Work popup — mobile only ── */}
       {selectedWork && (
-        <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] w-[calc(100vw-2rem)] max-w-sm shadow-2xl" style={{ maxHeight: '50dvh' }}>
-          <div className="glass-panel rounded-[var(--radius-lg)] overflow-y-auto" style={{ maxHeight: '50dvh' }}>
+        <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] w-[calc(100vw-2rem)] max-w-sm shadow-2xl" style={{ maxHeight: '58dvh' }}>
+          <div className="glass-panel rounded-[var(--radius-lg)] overflow-y-auto" style={{ maxHeight: '58dvh' }}>
             <WorkCard
               work={selectedWork}
               isPlaying={playingId === selectedWork.id}
@@ -778,6 +935,7 @@ export default function MapBrowse() {
               onPlay={() => play(selectedWork.id, selectedWork.selectedAudioUrl)}
               onLike={() => handleLike(selectedWork.id)}
               ownerActions={selectedWorkOwnerActions}
+              mediaMaxHeight="22dvh"
             />
           </div>
         </div>
@@ -789,7 +947,7 @@ export default function MapBrowse() {
       {/* ── Desktop right sidebar (md+) ── */}
       {/* Reserved for cluster and "my music" panels. Selected work uses a floating card. */}
       <div
-        className={`hidden md:flex absolute top-0 right-0 h-full w-80 z-[1001] flex-col transition-transform duration-300 ${desktopSidebarVisible ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`hidden md:flex absolute top-0 right-0 h-full w-96 z-[1001] flex-col transition-transform duration-300 ${desktopSidebarVisible ? 'translate-x-0' : 'translate-x-full'}`}
         style={{
           background: 'rgba(16,16,16,0.88)',
           backdropFilter: 'blur(28px)',
@@ -871,7 +1029,11 @@ export default function MapBrowse() {
               <div>
                 <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>我的作品</p>
                 <h2 className="font-semibold mt-2" style={{ fontSize: 16, color: 'var(--text-primary)' }}>我的作品</h2>
-                {myWorks.length > 0 && <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>{myWorks.length} 件</p>}
+                {myPanelItemCount > 0 && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                    {myPendingSubmissions.length} 件待完成 · {myWorks.length} 件已发布
+                  </p>
+                )}
               </div>
               <button aria-label="关闭" onClick={() => { setSidebarWorks(null); setSelectedWork(null); setMyPanelOpen(false); stop(); }} style={{ color: 'var(--text-tertiary)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', padding: 8, borderRadius: 999 }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -891,14 +1053,35 @@ export default function MapBrowse() {
                 <div className="flex items-center justify-center h-20">
                   <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
                 </div>
-              ) : myWorks.length === 0 ? (
+              ) : myPanelItemCount === 0 ? (
                 <div className="flex flex-col items-center justify-center h-20 gap-2">
                   <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>还没有已发布的作品</p>
                   <button type="button" onClick={startCreateFlow} className="text-sm" style={{ color: 'var(--accent-text)' }}>
                     去创建 →
                   </button>
                 </div>
-              ) : sortedMyWorks.map((work) => renderMyWorkListItem(work, 'desktop'))}
+              ) : (
+                <>
+                  {sortedMyPendingSubmissions.length > 0 && (
+                    <section style={{ marginBottom: 14 }}>
+                      <div className="flex items-center justify-between px-1 pb-2">
+                        <h3 className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>待完成作品</h3>
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{sortedMyPendingSubmissions.length} 件</span>
+                      </div>
+                      {sortedMyPendingSubmissions.map((item) => renderPendingSubmissionListItem(item, 'desktop'))}
+                    </section>
+                  )}
+                  {sortedMyWorks.length > 0 && (
+                    <section>
+                      <div className="flex items-center justify-between px-1 pb-2">
+                        <h3 className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>已发布作品</h3>
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{sortedMyWorks.length} 件</span>
+                      </div>
+                      {sortedMyWorks.map((work) => renderMyWorkListItem(work, 'desktop'))}
+                    </section>
+                  )}
+                </>
+              )}
             </div>
             {/* Logout at bottom */}
             <div className="flex-shrink-0 p-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
@@ -921,7 +1104,7 @@ export default function MapBrowse() {
         className="hidden md:block absolute right-4 z-[1001] transition-all duration-300"
         style={{
           top: floatingCardCenterY,
-          width: 360,
+          width: 400,
           maxWidth: 'calc(100vw - 2rem)',
           transform: desktopFloatingWorkVisible
             ? 'translate3d(0, -50%, 0)'
@@ -1063,21 +1246,46 @@ export default function MapBrowse() {
               <div className="flex items-center justify-center h-20">
                 <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
               </div>
-            ) : myWorks.length === 0 ? (
+            ) : myPanelItemCount === 0 ? (
               <div className="flex flex-col items-center justify-center h-20 gap-2">
                 <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>还没有已发布的作品</p>
                 <button type="button" onClick={startCreateFlow} className="text-sm" style={{ color: 'var(--accent-text)' }}>
                   去创建 →
                 </button>
               </div>
-            ) : sortedMyWorks.map((work) => renderMyWorkListItem(work, 'mobile'))}
+            ) : (
+              <>
+                {sortedMyPendingSubmissions.length > 0 && (
+                  <section style={{ marginBottom: 12 }}>
+                    <div className="flex items-center justify-between px-1 pb-2">
+                      <h3 className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>待完成作品</h3>
+                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{sortedMyPendingSubmissions.length} 件</span>
+                    </div>
+                    {sortedMyPendingSubmissions.map((item) => renderPendingSubmissionListItem(item, 'mobile'))}
+                  </section>
+                )}
+                {sortedMyWorks.length > 0 && (
+                  <section>
+                    <div className="flex items-center justify-between px-1 pb-2">
+                      <h3 className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>已发布作品</h3>
+                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{sortedMyWorks.length} 件</span>
+                    </div>
+                    {sortedMyWorks.map((work) => renderMyWorkListItem(work, 'mobile'))}
+                  </section>
+                )}
+              </>
+            )}
           </>
         );
 
         const myTitle = (
           <div className="px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>我的作品</h2>
-            {myWorks.length > 0 && <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{myWorks.length} 件</p>}
+            {myPanelItemCount > 0 && (
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                {myPendingSubmissions.length} 件待完成 · {myWorks.length} 件已发布
+              </p>
+            )}
           </div>
         );
 
@@ -1233,7 +1441,7 @@ export default function MapBrowse() {
             </div>
             {/* Desktop: right sidebar */}
             <div
-              className={`hidden md:flex absolute top-0 right-0 h-full w-80 flex-col transition-transform duration-300 ${createSheetOpen ? 'translate-x-0' : 'translate-x-full'}`}
+              className={`hidden md:flex absolute top-0 right-0 h-full w-96 flex-col transition-transform duration-300 ${createSheetOpen ? 'translate-x-0' : 'translate-x-full'}`}
               style={{ zIndex: 1050, background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', borderLeft: '1px solid var(--glass-border)', borderRadius: 'var(--radius-lg) 0 0 var(--radius-lg)' }}
             >
               <div className="flex-1 overflow-y-auto pt-4">{formContent}</div>

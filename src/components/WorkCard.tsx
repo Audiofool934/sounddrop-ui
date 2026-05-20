@@ -13,6 +13,7 @@ interface WorkCardProps {
   compact?: boolean;
   progress?: number;
   ownerActions?: ReactNode;
+  mediaMaxHeight?: string;
 }
 
 export default function WorkCard({
@@ -23,6 +24,7 @@ export default function WorkCard({
   compact = false,
   progress = 0,
   ownerActions,
+  mediaMaxHeight = '50vh',
 }: WorkCardProps) {
   const thumbnail = work.thumbnailUrl || work.imageUrl;
   const [lightbox, setLightbox] = useState(false);
@@ -110,7 +112,7 @@ export default function WorkCard({
           onClick={() => setLightbox(true)}
         >
           {thumbnail ? (
-            <img src={thumbnail} alt={title} className="w-full object-contain" style={{ maxHeight: '50vh' }} />
+            <img src={thumbnail} alt={title} className="w-full object-contain" style={{ maxHeight: mediaMaxHeight }} />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-4xl" style={{ color: 'var(--text-tertiary)' }}>🎵</div>
           )}
