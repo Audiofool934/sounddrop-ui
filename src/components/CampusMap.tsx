@@ -83,11 +83,19 @@ function createEmptyFanLayout(): FanLayoutState {
   };
 }
 
+const CREATE_PIN_WIDTH = 30;
+const CREATE_PIN_HEIGHT = 42;
+
 const PIN_ICON = L.divIcon({
-  html: '<span style="font-size:28px;line-height:1;display:block;transform:translate(-50%,-100%)">📍</span>',
-  className: '',
-  iconSize: [0, 0],
-  iconAnchor: [0, 0],
+  html: `
+    <svg width="${CREATE_PIN_WIDTH}" height="${CREATE_PIN_HEIGHT}" viewBox="0 0 30 42" aria-hidden="true" focusable="false" style="display:block;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.35))">
+      <path d="M15 41C15 41 3 25.8 3 15.4C3 8.55 8.37 3 15 3C21.63 3 27 8.55 27 15.4C27 25.8 15 41 15 41Z" fill="#ff4d3d" stroke="white" stroke-width="2" />
+      <circle cx="15" cy="15.4" r="5.2" fill="white" opacity="0.95" />
+    </svg>
+  `,
+  className: 'sounddrop-create-pin',
+  iconSize: [CREATE_PIN_WIDTH, CREATE_PIN_HEIGHT],
+  iconAnchor: [CREATE_PIN_WIDTH / 2, CREATE_PIN_HEIGHT],
 });
 
 // Pin size scales with zoom; floor kept large enough that the photo is always readable
