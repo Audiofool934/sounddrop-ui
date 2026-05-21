@@ -1,0 +1,76 @@
+name: Sync UI to private repo
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-ui-to-private
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip-private-sync]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout public UI repo
+        uses: actions/checkout@v4
+
+      - name: Open private import PR
+        env:
+          GH_TOKEN: ${{ secrets.SOUNDDROP_PRIVATE_SYNC_TOKEN }}
+          PRIVATE_REPO: Audiofool934/SoundDrop
+          SYNC_BRANCH: sync/from-public-ui
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "SOUNDDROP_PRIVATE_SYNC_TOKEN is required" >&2
+            exit 1
+          fi
+
+          git config --global user.name "sounddrop-sync-bot"
+          git config --global user.email "sounddrop-sync-bot@users.noreply.github.com"
+          gh auth setup-git
+
+          private_dir="$(mktemp -d)"
+          gh repo clone "${PRIVATE_REPO}" "${private_dir}"
+
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='dist' \
+            --exclude='.env' \
+            --exclude='.env.local' \
+            --exclude='.env.*.local' \
+            ./ "${private_dir}/frontend/"
+
+          cd "${private_dir}"
+
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No private frontend changes to sync."
+            exit 0
+          fi
+
+          git checkout -B "${SYNC_BRANCH}"
+          git add frontend
+          git commit -m "Import UI from public sounddrop-ui [skip-public-sync]"
+          git push -f origin "${SYNC_BRANCH}"
+
+          title="Import UI from public sounddrop-ui"
+          body="Automated PR from public sounddrop-ui main. Source commit: ${GITHUB_SHA}."
+          existing_pr="$(gh pr list --repo "${PRIVATE_REPO}" --head "${SYNC_BRANCH}" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "${existing_pr}" ]; then
+            gh pr edit "${existing_pr}" --repo "${PRIVATE_REPO}" --title "${title}" --body "${body}"
+          else
+            gh pr create --repo "${PRIVATE_REPO}" --head "${SYNC_BRANCH}" --base main --title "${title}" --body "${body}"
+          fi
