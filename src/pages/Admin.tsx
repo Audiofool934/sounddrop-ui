@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import api from '../api/client';
 import type { AdminWork } from '../types';
+import DownloadMenu from '../components/DownloadMenu';
 
 interface AdminStats {
   totalUsers: number;
@@ -202,6 +203,11 @@ export default function Admin() {
     handleThumbnailInteraction(work);
   };
 
+  const getDownloadName = (work: AdminWork) => {
+    const label = work.title.trim() || work.regionName || work.id.slice(0, 8);
+    return `sounddrop-${work.loginAccount}-${label}`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0a' }}>
@@ -388,7 +394,7 @@ export default function Admin() {
             <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>暂无作品</p>
           ) : (
             <div className="glass-panel rounded-[var(--radius-md)] overflow-hidden overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="text-xs uppercase tracking-wider" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-tertiary)' }}>
                     <th className="px-4 py-3 text-left font-medium">缩略图</th>
@@ -617,16 +623,25 @@ export default function Admin() {
 
                       {/* Action */}
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleToggleVisibility(work)}
-                          className="px-3 py-1 rounded-[var(--radius-sm)] text-xs font-medium transition-colors"
-                          style={work.visible
-                            ? { background: 'rgba(239,68,68,0.12)', color: 'rgba(248,113,113,1)', border: '1px solid rgba(239,68,68,0.25)' }
-                            : { background: 'var(--accent-soft)', color: 'var(--accent-text)', border: '1px solid var(--accent-border)' }
-                          }
-                        >
-                          {work.visible ? '下架' : '恢复'}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => handleToggleVisibility(work)}
+                            className="px-3 py-1 rounded-[var(--radius-sm)] text-xs font-medium transition-colors"
+                            style={work.visible
+                              ? { background: 'rgba(239,68,68,0.12)', color: 'rgba(248,113,113,1)', border: '1px solid rgba(239,68,68,0.25)' }
+                              : { background: 'var(--accent-soft)', color: 'var(--accent-text)', border: '1px solid var(--accent-border)' }
+                            }
+                          >
+                            {work.visible ? '下架' : '恢复'}
+                          </button>
+                          <DownloadMenu
+                            imageUrl={work.imageUrl}
+                            audioUrl={work.selectedAudioUrl}
+                            filenameBase={getDownloadName(work)}
+                            size={30}
+                            onBeforeVideoExport={stop}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}

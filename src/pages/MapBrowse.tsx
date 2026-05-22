@@ -4,6 +4,7 @@ import CampusMap from '../components/CampusMap';
 import WorkCard from '../components/WorkCard';
 import ImageUpload from '../components/ImageUpload';
 import StyleTags from '../components/StyleTags';
+import DownloadMenu from '../components/DownloadMenu';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { useAuth } from '../hooks/useAuth';
 import { useDragSheet } from '../hooks/useDragSheet';
@@ -13,10 +14,18 @@ import { DEMO_REGIONS, DEMO_WORKS } from '../demoData';
 import { DEMO_FALLBACK_ENABLED } from '../demoMode';
 import type { Work, Region } from '../types';
 import { getWorkSummary, getWorkTitle } from '../utils/workText';
+import {
+  NO_LOCATION_MAP_X,
+  NO_LOCATION_MAP_Y,
+  NO_LOCATION_REGION_NAME,
+  isNoLocationItem,
+} from '../utils/locationMode';
 
 interface MySubmission {
   submission: {
     id: string;
+    mapX: number;
+    mapY: number;
     regionName: string;
     title: string;
     cornerStory: string;
@@ -31,7 +40,13 @@ interface MySubmission {
     status: string;
     audioUrls: string[];
   } | null;
-  work: { id: string } | null;
+  work: {
+    id: string;
+    selectedAudioUrl: string;
+    likeCount: number;
+    displayStatus: 'visible' | 'hidden';
+    publishedAt: string;
+  } | null;
 }
 
 interface SubmissionUpdatePayload {
@@ -47,6 +62,27 @@ const CORNER_STORY_MAX_LENGTH = 280;
 function getApiErrorMessage(err: unknown, fallback: string) {
   return (err as { response?: { data?: { error?: { message?: string } } } })
     ?.response?.data?.error?.message ?? fallback;
+}
+
+function submissionToWork(item: MySubmission, loginAccount: string): Work | null {
+  if (!item.work) return null;
+  return {
+    id: item.work.id,
+    submissionId: item.submission.id,
+    loginAccount,
+    mapX: item.submission.mapX,
+    mapY: item.submission.mapY,
+    regionName: item.submission.regionName,
+    title: item.submission.title,
+    cornerStory: item.submission.cornerStory,
+    imageUrl: item.submission.imageUrl,
+    thumbnailUrl: item.submission.thumbnailUrl,
+    musicPrompt: item.submission.musicPrompt,
+    selectedAudioUrl: item.work.selectedAudioUrl,
+    likeCount: item.work.likeCount,
+    displayStatus: item.work.displayStatus,
+    publishedAt: item.work.publishedAt,
+  };
 }
 
 export default function MapBrowse() {
@@ -84,7 +120,15 @@ export default function MapBrowse() {
   const [editError, setEditError] = useState('');
 
   // Status bar: active generation tracking
-  const [activeGen, setActiveGen] = useState<{ submissionId: string; regionName: string; status: string; jobsAhead?: number | null } | null>(null);
+  const [activeGen, setActiveGen] = useState<{
+    submissionId: string;
+    regionName: string;
+    status: string;
+    jobsAhead?: number | null;
+    queuePosition?: number | null;
+    totalQueued?: number | null;
+    myActive?: number | null;
+  } | null>(null);
   const genIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const trackingIdRef = useRef<string | null>(null);
 
@@ -182,10 +226,27 @@ export default function MapBrowse() {
     const poll = async () => {
       try {
         const res = await api.get(`/generations/${submissionId}`);
-        const data = res.data.data as { status: string; audioUrls: string[] | null; queue?: { jobsAhead: number | null } };
+        const data = res.data.data as {
+          status: string;
+          audioUrls: string[] | null;
+          queue?: {
+            jobsAhead: number | null;
+            queuePosition: number | null;
+            totalQueued: number | null;
+            myActive: number | null;
+          };
+        };
 
         if (data.status === 'queued' || data.status === 'processing') {
-          setActiveGen({ submissionId, regionName, status: 'generating', jobsAhead: data.queue?.jobsAhead ?? null });
+          setActiveGen({
+            submissionId,
+            regionName,
+            status: 'generating',
+            jobsAhead: data.queue?.jobsAhead ?? null,
+            queuePosition: data.queue?.queuePosition ?? null,
+            totalQueued: data.queue?.totalQueued ?? null,
+            myActive: data.queue?.myActive ?? null,
+          });
         }
 
         if (data.status === 'done') {
@@ -267,8 +328,10 @@ export default function MapBrowse() {
       });
       setMyPendingSubmissions(pending);
 
-      const myPublished = works.filter((w) => w.loginAccount === user.loginAccount);
-      setMyWorks(myPublished);
+      const publishedFromSubmissions = (submissionsRes.data.data || [])
+        .map((item) => submissionToWork(item, user.loginAccount))
+        .filter((work): work is Work => work !== null);
+      setMyWorks(publishedFromSubmissions);
     } catch {
       setMyPendingSubmissions([]);
       const myPublished = works.filter((w) => w.loginAccount === user.loginAccount);
@@ -308,7 +371,7 @@ export default function MapBrowse() {
         setImageUrl(''); setImagePreview(null);
         setUploadId(''); setUploadToken('');
         setTitle(''); setCornerStory(''); setMusicPrompt('');
-        setGuidance(2.0); setSubmitError('');
+        setGuidance(2.0); setNumSongs(1); setSubmitError('');
       }
       // Dismiss other panels
       setSidebarWorks(null); setSelectedWork(null); setMyPanelOpen(false);
@@ -338,6 +401,26 @@ export default function MapBrowse() {
     setTimeout(() => createDrag.applyDefault(), 50);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const startDirectImageFlow = useCallback(() => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+
+    setSidebarWorks(null);
+    setSelectedWork(null);
+    setMyPanelOpen(false);
+    stop();
+    setCreateMode(true);
+    setCreateLocation({
+      mapX: NO_LOCATION_MAP_X,
+      mapY: NO_LOCATION_MAP_Y,
+      regionName: NO_LOCATION_REGION_NAME,
+    });
+    setCreateSheetOpen(true);
+    setTimeout(() => createDrag.applyDefault(), 50);
+  }, [user, navigate, stop, createDrag]);
+
   const handleImageUpload = async (blob: Blob, previewUrl: string) => {
     setImagePreview(previewUrl);
     setSubmitError('');
@@ -365,6 +448,7 @@ export default function MapBrowse() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createLocation || !imageUrl || !uploadId || !uploadToken || submitting) return;
+    const noLocation = isNoLocationItem(createLocation);
     if (!titleValid) {
       setSubmitError(`标题最多 ${TITLE_MAX_LENGTH} 字`);
       return;
@@ -382,17 +466,21 @@ export default function MapBrowse() {
       const res = await api.post('/submissions', {
         mapX: createLocation.mapX, mapY: createLocation.mapY,
         regionName: createLocation.regionName,
+        locationMode: noLocation ? 'none' : 'map',
         title: title.trim(),
         cornerStory: cornerStory.trim(),
         uploadId, uploadToken,
         musicPrompt: musicPrompt.trim(), guidance, numSongs,
       });
       const submissionId = res.data.data.submissionId;
+      startTracking(submissionId, createLocation.regionName);
       setCreateMode(false); setCreateSheetOpen(false); setCreateLocation(null);
       setImageUrl(''); setImagePreview(null);
       setUploadId(''); setUploadToken('');
       setTitle(''); setCornerStory(''); setMusicPrompt(''); setNumSongs(1);
-      navigate(`/select?id=${submissionId}`);
+      if (searchParams.toString()) {
+        navigate('/map', { replace: true });
+      }
     } catch (err: unknown) {
       setSubmitError(getApiErrorMessage(err, '提交失败'));
     } finally { setSubmitting(false); }
@@ -584,6 +672,10 @@ export default function MapBrowse() {
   // My-music item click handler (shared between desktop sidebar and mobile sheet)
   const handleMyWorkClick = (work: Work) => {
     closeMyPanel();
+    if (isNoLocationItem(work)) {
+      setSelectedWork(work);
+      return;
+    }
     setFlyTarget({ x: work.mapX, y: work.mapY, offsetY: 250 });
     setTimeout(() => setSelectedWork(work), 900);
   };
@@ -655,6 +747,14 @@ export default function MapBrowse() {
 
     return (
       <div className="flex items-center gap-2">
+        <DownloadMenu
+          imageUrl={work.imageUrl}
+          audioUrl={work.selectedAudioUrl}
+          filenameBase={`sounddrop-${getWorkTitle(work) || work.regionName}`}
+          size={variant === 'card' ? 40 : 34}
+          disabled={editSaving || editDeleting}
+          onBeforeVideoExport={stop}
+        />
         <button
           type="button"
           aria-label="编辑作品"
@@ -838,9 +938,11 @@ export default function MapBrowse() {
                 style={{ borderColor: 'var(--accent-text)', borderTopColor: 'transparent' }}
               />
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {activeGen.jobsAhead !== null && activeGen.jobsAhead !== undefined
-                  ? `排队中：前方 ${activeGen.jobsAhead} 个任务`
-                  : `正在生成「${activeGen.regionName}」的音乐…`}
+                {activeGen.queuePosition !== null && activeGen.queuePosition !== undefined
+                  ? `生成中：第 ${activeGen.queuePosition} 个 · 前方 ${activeGen.jobsAhead ?? 0} 个${activeGen.totalQueued ? ` · 共 ${activeGen.totalQueued} 个` : ''}`
+                  : activeGen.totalQueued !== null && activeGen.totalQueued !== undefined
+                    ? `生成中：队列共 ${activeGen.totalQueued} 个任务`
+                    : `正在生成「${activeGen.regionName}」的音乐…`}
               </span>
             </div>
           ) : (
@@ -862,6 +964,7 @@ export default function MapBrowse() {
         onMapClick={() => { if (!createMode) { setSelectedWork(null); setSidebarWorks(null); setMyPanelOpen(false); stop(); } }}
         flyToCoord={flyTarget}
         createMode={createMode}
+        topInset={activeGen ? 104 : 64}
         onCreateLocationPick={handleCreateLocationPick}
       />
 
@@ -871,33 +974,6 @@ export default function MapBrowse() {
           <div className="glass-panel flex items-center gap-3 px-5 py-3 rounded-[var(--radius-md)] shadow-xl">
             <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
             <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>加载中...</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Create mode guide ── */}
-      {createMode && !createLocation && !mapLoading && !mapError && (
-        <div
-          className="absolute left-1/2 z-[1003] -translate-x-1/2 pointer-events-none px-4"
-          style={{ top: activeGen ? 104 : 72, transition: 'top 0.3s ease' }}
-        >
-          <div
-            className="glass-panel text-center shadow-xl"
-            style={{
-              padding: '12px 18px',
-              borderRadius: 'var(--radius-full)',
-              background: 'rgba(16,16,16,0.82)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              backdropFilter: 'blur(18px)',
-              WebkitBackdropFilter: 'blur(18px)',
-            }}
-          >
-            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              选择地图上的地点
-            </p>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
-              选好地点后，上传照片并填写描述
-            </p>
           </div>
         </div>
       )}
@@ -1320,26 +1396,29 @@ export default function MapBrowse() {
 
       {/* ── Create mode form panel ── */}
       {createMode && createLocation && (() => {
+        const noLocation = isNoLocationItem(createLocation);
         const formContent = (
           <div style={{ padding: '0 20px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>创建作品</h2>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {noLocation ? '图片转音乐' : '创建作品'}
+              </h2>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                上传照片，填写描述，然后生成音乐。
+                {noLocation ? '不选择地图地点，生成结果会保存在我的作品里。' : '上传照片，填写描述，然后生成音乐。'}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <div className="glass-panel flex items-center gap-2" style={{ display: 'inline-flex', padding: '8px 14px', borderRadius: 'var(--radius-full)' }}>
-                <span style={{ fontSize: 14 }}>📍</span>
+              <div className="glass-panel flex items-center gap-2" style={{ display: 'inline-flex', padding: '8px 14px', borderRadius: 'var(--radius-md)' }}>
+                <span style={{ fontSize: 14 }}>{noLocation ? '♪' : '📍'}</span>
                 <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{createLocation.regionName}</span>
               </div>
               <button
                 type="button"
                 onClick={() => { setCreateLocation(null); setCreateSheetOpen(false); }}
-                className="rounded-full transition-all hover:bg-[rgba(255,255,255,0.1)]"
+                className="rounded-[var(--radius-md)] transition-all hover:bg-[rgba(255,255,255,0.1)]"
                 style={{ padding: '8px 14px', fontSize: 13, color: 'var(--accent-text)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
               >
-                重选地点
+                {noLocation ? '选择地点' : '重选地点'}
               </button>
             </div>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1612,18 +1691,38 @@ export default function MapBrowse() {
               type="button"
               onClick={() => { if (!createMode) toggleCreateMode(); }}
               style={{
-                padding: '7px 14px', fontSize: 13, fontWeight: 500, lineHeight: 1,
+                padding: '7px 12px', fontSize: 13, fontWeight: 500, lineHeight: 1,
                 borderRadius: 'var(--radius-full)', border: 'none', cursor: 'pointer',
                 transition: 'all 0.25s ease',
                 background: createMode ? 'rgba(160,40,45,0.95)' : 'transparent',
                 color: createMode ? 'white' : 'var(--text-tertiary)',
               }}
             >创作</button>
+            {createMode && !createLocation && (
+              <button
+                type="button"
+                onClick={startDirectImageFlow}
+                style={{
+                  padding: '7px 11px',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  lineHeight: 1,
+                  borderRadius: 'var(--radius-full)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.25s ease',
+                  background: 'transparent',
+                  color: 'var(--accent-text)',
+                }}
+              >
+                无地点
+              </button>
+            )}
             <button
               type="button"
               onClick={() => { if (createMode) toggleCreateMode(); }}
               style={{
-                padding: '7px 14px', fontSize: 13, fontWeight: 500, lineHeight: 1,
+                padding: '7px 12px', fontSize: 13, fontWeight: 500, lineHeight: 1,
                 borderRadius: 'var(--radius-full)', border: 'none', cursor: 'pointer',
                 transition: 'all 0.25s ease',
                 background: !createMode ? 'rgba(255,255,255,0.12)' : 'transparent',

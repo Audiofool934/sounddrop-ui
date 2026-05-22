@@ -52,6 +52,7 @@ export interface Work {
   selectedAudioUrl: string;
   likeCount: number;
   isLiked?: boolean;
+  displayStatus?: 'visible' | 'hidden';
   publishedAt: string;
 }
 

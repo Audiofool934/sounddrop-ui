@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Work } from '../types';
 import { PlayIcon, PauseIcon, HeartIcon } from './Icons';
+import DownloadMenu from './DownloadMenu';
 import { getWorkSummary, getWorkTitle, hasCornerStory } from '../utils/workText';
 
 interface WorkCardProps {
@@ -90,6 +91,13 @@ export default function WorkCard({
             <HeartIcon filled={work.isLiked} size={13} />
             <span>{work.likeCount}</span>
           </button>
+          <DownloadMenu
+            imageUrl={work.imageUrl}
+            audioUrl={work.selectedAudioUrl}
+            filenameBase={`sounddrop-${title || work.regionName}`}
+            size={34}
+            onBeforeVideoExport={() => { if (isPlaying) onPlay(); }}
+          />
         </div>
       </div>
     );
@@ -171,6 +179,15 @@ export default function WorkCard({
               <HeartIcon filled={work.isLiked} size={14} />
               <span>{work.likeCount}</span>
             </button>
+            {!ownerActions && (
+              <DownloadMenu
+                imageUrl={work.imageUrl}
+                audioUrl={work.selectedAudioUrl}
+                filenameBase={`sounddrop-${title || work.regionName}`}
+                size={40}
+                onBeforeVideoExport={() => { if (isPlaying) onPlay(); }}
+              />
+            )}
           </div>
 
           {ownerActions && (
