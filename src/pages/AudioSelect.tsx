@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useGenerationPolling } from '../hooks/usePolling';
 import StyleTags from '../components/StyleTags';
+import DownloadMenu from '../components/DownloadMenu';
 import api from '../api/client';
 import { getWorkSummary, getWorkTitle } from '../utils/workText';
+import { NO_LOCATION_REGION_NAME } from '../utils/locationMode';
 
 interface SubmissionData {
   id: string;
@@ -177,13 +179,23 @@ export default function AudioSelect() {
     ?? (submission?.status === 'failed' ? 'failed' : null)
     ?? 'queued';
   const audioUrls = pollResult?.audioUrls ?? (initialAudioUrls.length > 0 ? initialAudioUrls : null);
-  const queue = pollResult?.queue ?? null;
+  const noLocation = submission?.regionName === NO_LOCATION_REGION_NAME;
 
   useEffect(() => {
     if (status === 'done' && audioUrls && audioUrls.length > 0) {
       setTimeout(() => setSheetOpen(true), 20);
     }
   }, [status, audioUrls]);
+
+  useEffect(() => {
+    if (noLocation) setVisibility('private');
+  }, [noLocation]);
+
+  useEffect(() => {
+    if (!loading && submission && (status === 'queued' || status === 'processing')) {
+      navigate(`/map?gen=${submission.id}&region=${encodeURIComponent(submission.regionName)}`, { replace: true });
+    }
+  }, [loading, navigate, status, submission]);
 
   useEffect(() => () => {
     audioRefs.current.forEach((audio) => {
@@ -198,7 +210,7 @@ export default function AudioSelect() {
     try {
       const selectRes = await api.post(`/generations/${generationId}/select`, { selectedIndex, visibility });
       const { workId, mapX, mapY } = selectRes.data.data;
-      if (workId) {
+      if (workId && !noLocation) {
         navigate(`/map?highlight=${workId}&x=${mapX}&y=${mapY}`);
       } else {
         navigate('/map?panel=my');
@@ -264,82 +276,6 @@ export default function AudioSelect() {
 
       {/* Content */}
       <div className="relative" style={{ zIndex: 10, height: '100%' }}>
-
-        {/* ── Queued / Processing ── */}
-        {(status === 'queued' || status === 'processing') && (
-          <div className="flex flex-col items-center justify-center h-full px-6">
-            <div
-              className="glass-panel w-full flex flex-col items-center gap-6 p-8"
-              style={{ maxWidth: 360, borderRadius: 24 }}
-            >
-              {/* Pulsing music note */}
-              <div className="relative flex items-center justify-center">
-                <div
-                  className="w-24 h-24 rounded-full flex items-center justify-center animate-pulse"
-                  style={{
-                    background: 'var(--accent-soft)',
-                    border: '1px solid var(--accent-border)',
-                  }}
-                >
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-                  </svg>
-                </div>
-                <div
-                  className="absolute inset-0 rounded-full animate-ping"
-                  style={{ border: '1px solid rgba(160,40,45,0.3)' }}
-                />
-              </div>
-
-              <div className="text-center" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <h2
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    letterSpacing: '0.02em',
-                  }}
-                >
-                  正在生成音乐…
-                </h2>
-                <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  {status === 'queued' && queue?.jobsAhead !== null && queue?.jobsAhead !== undefined
-                    ? `前方 ${queue.jobsAhead} 个任务`
-                    : status === 'queued' && queue?.totalQueued !== null && queue?.totalQueued !== undefined
-                      ? `队列中约 ${queue.totalQueued} 个任务`
-                      : '当前任务正在处理'}
-                </p>
-                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                  {queue?.myActive !== null && queue?.myActive !== undefined
-                    ? `你的任务 ${queue.myActive} 个 · 可稍后在「待完成作品」查看`
-                    : '可稍后在「待完成作品」查看'}
-                </p>
-              </div>
-
-              {/* Animated dots */}
-              <div className="flex gap-2">
-                {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="w-2 h-2 rounded-full"
-                    style={{
-                      background: 'var(--accent)',
-                      animation: `audioSelectBounce 1.2s ease-in-out ${i * 0.2}s infinite`,
-                    }}
-                  />
-                ))}
-              </div>
-
-              <button
-                onClick={() => navigate(`/map?gen=${submission?.id || ''}&region=${encodeURIComponent(submission?.regionName || '')}`)}
-                className="btn-secondary w-full text-center"
-                style={{ marginTop: 8, padding: '10px 24px', fontSize: 13 }}
-              >
-                返回地图
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* ── Failed ── */}
         {status === 'failed' && (
@@ -426,10 +362,35 @@ export default function AudioSelect() {
                   const idx = (i + 1) as 1 | 2 | 3;
                   const isSelected = selectedIndex === idx;
                   return (
-                    <button key={url} type="button" onClick={() => setSelectedIndex(idx)} className="w-full text-left transition-all" style={{ borderRadius: 'var(--radius-md)', border: isSelected ? '1px solid var(--accent-border)' : '1px solid var(--glass-border)', background: isSelected ? 'var(--accent-soft)' : 'rgba(255,255,255,0.04)', padding: 16, cursor: 'pointer' }}>
+                    <div
+                      key={url}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      onClick={() => setSelectedIndex(idx)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedIndex(idx);
+                        }
+                      }}
+                      className="w-full text-left transition-all"
+                      style={{ borderRadius: 'var(--radius-md)', border: isSelected ? '1px solid var(--accent-border)' : '1px solid var(--glass-border)', background: isSelected ? 'var(--accent-soft)' : 'rgba(255,255,255,0.04)', padding: 16, cursor: 'pointer' }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                         <span style={{ fontSize: 16, flexShrink: 0, color: isSelected ? 'var(--accent-text)' : 'var(--text-tertiary)' }}>{isSelected ? '●' : '○'}</span>
                         <span style={{ fontSize: 14, fontWeight: 600, color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>版本 {idx}</span>
+                        {submission && (
+                          <div style={{ marginLeft: 'auto' }}>
+                            <DownloadMenu
+                              imageUrl={submission.imageUrl}
+                              audioUrl={url}
+                              filenameBase={`sounddrop-${getWorkTitle(submission)}-version-${idx}`}
+                              size={32}
+                              onBeforeVideoExport={pauseAllAudio}
+                            />
+                          </div>
+                        )}
                       </div>
                       <audio
                         ref={(audio) => { audioRefs.current[i] = audio; }}
@@ -441,46 +402,48 @@ export default function AudioSelect() {
                         onClick={(e) => e.stopPropagation()}
                         onPlay={() => handleAudioPlay(i)}
                       />
-                      <a
-                        href={url}
-                        download={`sounddrop-version-${idx}.mp3`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex mt-2 text-xs"
-                        style={{ color: 'var(--accent-text)' }}
-                      >
-                        下载版本 {idx}
-                      </a>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
               <div className="glass-panel" style={{ borderRadius: 'var(--radius-md)', padding: 12 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>可见度</p>
-                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="作品可见度">
-                  {(['public', 'private'] as const).map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      role="radio"
-                      aria-checked={visibility === value}
-                      onClick={() => setVisibility(value)}
-                      className="rounded-[var(--radius-md)] transition-all text-left"
-                      style={{
-                        padding: '10px 12px',
-                        border: visibility === value ? '1px solid var(--accent-border)' : '1px solid var(--glass-border)',
-                        background: visibility === value ? 'var(--accent-soft)' : 'rgba(255,255,255,0.04)',
-                      }}
-                    >
-                      <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: visibility === value ? 'var(--accent-text)' : 'var(--text-secondary)' }}>{value === 'public' ? '公开' : '仅自己可见'}</span>
-                      <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{value === 'public' ? '发布到地图' : '保存，不上地图'}</span>
-                    </button>
-                  ))}
-                </div>
+                {noLocation ? (
+                  <>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>图片转音乐</p>
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
+                      这个作品不会发布到地图，会保存在我的作品里。
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>可见度</p>
+                    <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="作品可见度">
+                      {(['public', 'private'] as const).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          role="radio"
+                          aria-checked={visibility === value}
+                          onClick={() => setVisibility(value)}
+                          className="rounded-[var(--radius-md)] transition-all text-left"
+                          style={{
+                            padding: '10px 12px',
+                            border: visibility === value ? '1px solid var(--accent-border)' : '1px solid var(--glass-border)',
+                            background: visibility === value ? 'var(--accent-soft)' : 'rgba(255,255,255,0.04)',
+                          }}
+                        >
+                          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: visibility === value ? 'var(--accent-text)' : 'var(--text-secondary)' }}>{value === 'public' ? '公开' : '仅自己可见'}</span>
+                          <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{value === 'public' ? '发布到地图' : '保存，不上地图'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
               <p className="text-center" style={{ fontSize: 12, color: 'rgba(234,179,8,0.8)', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.15)', borderRadius: 'var(--radius-md)', padding: '10px 16px' }}>选择后暂时不能更换音频，请先试听确认。</p>
               {confirmError && <p className="text-center" style={{ fontSize: 14, color: '#f87171', background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 'var(--radius-md)', padding: '10px 16px' }}>{confirmError}</p>}
               <button type="button" disabled={selectedIndex === null || confirming} onClick={handleConfirm} className="btn-primary w-full">
-                {confirming ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />保存中…</span>) : selectedIndex ? (visibility === 'public' ? `发布版本 ${selectedIndex}` : `保存版本 ${selectedIndex}`) : '请先选择一个版本'}
+                {confirming ? (<span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} />保存中…</span>) : selectedIndex ? (noLocation || visibility !== 'public' ? `保存版本 ${selectedIndex}` : `发布版本 ${selectedIndex}`) : '请先选择一个版本'}
               </button>
               <button type="button" disabled={confirming} onClick={() => navigate('/map?panel=my')} className="btn-secondary w-full" style={{ fontSize: 14 }}>暂不选择，稍后再说</button>
               <button type="button" disabled={confirming} onClick={() => { setSheetOpen(false); setSelectedIndex(null); setConfirmError(''); setEditMode(true); }} className="btn-secondary w-full" style={{ fontSize: 14 }}>不满意，重新生成</button>

@@ -25,6 +25,7 @@ interface BrowseModeProps {
   flyToCoord?: { x: number; y: number; offsetX?: number; offsetY?: number } | null; // offsetX: shift pin left (for right sidebars); offsetY: shift pin up (for bottom cards)
   // Create mode overlay: dims pins and allows placing a submission pin
   createMode?: boolean;
+  topInset?: number;
   onCreateLocationPick?: (mapX: number, mapY: number, regionName: string) => void;
 }
 
@@ -779,7 +780,10 @@ export default function CampusMap(props: CampusMapProps) {
 
       {/* Browse + createMode hint */}
       {props.mode === 'browse' && (props as BrowseModeProps).createMode && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] bg-black/70 text-white text-sm px-4 py-2 rounded-full pointer-events-none">
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-[1000] bg-black/70 text-white text-sm px-4 py-2 rounded-full pointer-events-none transition-[top]"
+          style={{ top: (props as BrowseModeProps).topInset ?? 64 }}
+        >
           点击地图选择地点
         </div>
       )}

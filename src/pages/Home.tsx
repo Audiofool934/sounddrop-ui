@@ -89,11 +89,10 @@ export default function Home() {
   }, [galleryMode, updateCardScales]);
 
   useEffect(() => {
-    if (!playingId || galleryWorks.some((work) => work.id === playingId)) return;
-
-    audioRef.current?.pause();
-    const reset = window.setTimeout(() => setPlayingId(null), 0);
-    return () => window.clearTimeout(reset);
+    if (playingId && !galleryWorks.some((work) => work.id === playingId)) {
+      audioRef.current?.pause();
+      setPlayingId(null);
+    }
   }, [galleryWorks, playingId]);
 
   return (
